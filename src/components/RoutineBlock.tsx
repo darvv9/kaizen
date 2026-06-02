@@ -43,7 +43,7 @@ export function RoutineBlock({
   const maxDown = (TIMELINE_END - slot.durationMinutes - currentMinutes) * PX_PER_MIN;
 
   function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
-    if (Math.abs(info.offset.y) >= 8) {
+    if (Math.abs(info.offset.y) >= 14) {
       const next = snapTimelineMinutes(
         currentMinutes + info.offset.y / PX_PER_MIN,
         slot.durationMinutes
@@ -81,24 +81,28 @@ export function RoutineBlock({
         className="absolute inset-y-0 left-0 w-1"
         style={{ backgroundColor: color }}
       />
-      <div className="flex h-full items-center gap-1 px-2 py-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[10px] font-medium text-white/50">
-            {prettyTime(slot.startTime)}
-          </div>
-          <div className="truncate text-xs font-semibold text-white">{habit.name}</div>
-          {totalColumns === 1 && category && (
-            <div className="truncate text-[10px] text-white/45">
-              {category.icon} {category.name}
-            </div>
-          )}
+      <div className="flex h-full min-w-0 flex-col justify-center py-1 pl-2.5 pr-9">
+        <div className="truncate text-[10px] font-medium text-white/50">
+          {prettyTime(slot.startTime)}
         </div>
-        {totalColumns === 1 && (
-          <span className="shrink-0 text-base leading-none text-white/25" aria-hidden>
-            ⠿
-          </span>
+        <div className="truncate text-xs font-semibold text-white">{habit.name}</div>
+        {totalColumns === 1 && category && (
+          <div className="truncate text-[10px] text-white/45">
+            {category.icon} {category.name}
+          </div>
         )}
       </div>
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit();
+        }}
+        aria-label={`Editar ${habit.name}`}
+        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/30 text-[12px] leading-none text-white/80 backdrop-blur-sm transition active:scale-90 active:bg-black/50"
+      >
+        ✎
+      </button>
     </motion.div>
   );
 }

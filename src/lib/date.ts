@@ -27,6 +27,13 @@ export function lastNDays(n: number, from: Date = new Date()): Date[] {
   return out;
 }
 
+/** Datas de Segunda → Domingo da semana que contém `from`. */
+export function weekDates(from: Date = new Date()): Date[] {
+  const offsetToMonday = (from.getDay() + 6) % 7;
+  const monday = addDays(from, -offsetToMonday);
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}
+
 export const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"];
 export const WEEKDAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 export const WEEKDAY_FULL = [

@@ -196,12 +196,14 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
           {editing && (
             <button
               onClick={() => {
-                deleteRoutineSlot(editing.id);
-                onClose();
+                if (confirm("Excluir este bloco da rotina?")) {
+                  deleteRoutineSlot(editing.id);
+                  onClose();
+                }
               }}
-              className="rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+              className="flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-400"
             >
-              Excluir
+              <span aria-hidden>🗑</span> Excluir
             </button>
           )}
           <button

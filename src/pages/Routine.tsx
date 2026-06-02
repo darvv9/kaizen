@@ -4,10 +4,11 @@ import { useStore } from "../store/useStore";
 import { RoutineBlock } from "../components/RoutineBlock";
 import { SlotSheet } from "../components/SlotSheet";
 import {
-  WEEKDAYS_MON_FIRST,
   WEEKDAY_SHORT_MON_FIRST,
   WEEKDAY_FULL,
   weekdayOf,
+  weekDates,
+  isToday,
 } from "../lib/date";
 import { slotsForWeekday } from "../lib/routine";
 import { computeSlotLayouts } from "../lib/overlapLayout";
@@ -22,7 +23,9 @@ import type { RoutineSlot, Weekday } from "../types";
 
 export function Routine() {
   const data = useStore((s) => s.data);
-  const todayWd = weekdayOf();
+  const today = new Date();
+  const todayWd = weekdayOf(today);
+  const week = weekDates(today);
   const [selected, setSelected] = useState<Weekday>(todayWd);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RoutineSlot | null>(null);
@@ -63,42 +66,51 @@ export function Routine() {
         <div className="text-xs uppercase tracking-[0.2em] text-white/40">Rotina</div>
         <h1 className="text-2xl font-bold text-white">Sua semana</h1>
         <p className="mt-1 text-sm text-white/45">
-          Arraste os blocos para mudar o horário · toque para editar.
+          Arraste um bloco para mudar o horário · toque no ✎ para editar ou excluir.
         </p>
       </header>
 
       <section className="card p-2">
         <div className="grid grid-cols-7 gap-1">
-          {WEEKDAYS_MON_FIRST.map((wd, i) => {
+          {week.map((date, i) => {
+            const wd = date.getDay() as Weekday;
             const count = slotsForWeekday(data, wd).length;
-            const isToday = wd === todayWd;
+            const isCurrentDay = isToday(date);
             const isSelected = wd === selected;
             return (
               <button
                 key={wd}
                 onClick={() => setSelected(wd)}
-                className="relative flex flex-col items-center rounded-xl py-2.5 transition"
+                className="relative flex flex-col items-center gap-1 rounded-xl py-2 transition"
               >
-                {isSelected && (
-                  <span className="absolute inset-0 rounded-xl bg-white/10" />
-                )}
                 <span
-                  className={`relative text-[11px] font-medium ${
-                    isSelected ? "text-white" : "text-white/45"
+                  className={`text-[11px] font-medium ${
+                    isCurrentDay || isSelected ? "text-white/70" : "text-white/40"
                   }`}
                 >
                   {WEEKDAY_SHORT_MON_FIRST[i]}
                 </span>
                 <span
-                  className={`relative mt-0.5 text-lg font-bold ${
-                    isToday ? "text-white" : isSelected ? "text-white/80" : "text-white/35"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition ${
+                    isCurrentDay
+                      ? "bg-white text-ink-950"
+                      : isSelected
+                      ? "bg-white/12 text-white ring-1 ring-white/30"
+                      : "text-white/55"
                   }`}
                 >
-                  {count || "·"}
+                  {date.getDate()}
                 </span>
-                {isToday && (
-                  <span className="relative mt-0.5 h-1 w-1 rounded-full bg-white" />
-                )}
+                <span className="flex h-1.5 items-center justify-center gap-0.5">
+                  {Array.from({ length: Math.min(count, 4) }).map((_, d) => (
+                    <span
+                      key={d}
+                      className={`h-1 w-1 rounded-full ${
+                        isCurrentDay ? "bg-white" : "bg-white/40"
+                      }`}
+                    />
+                  ))}
+                </span>
               </button>
             );
           })}
@@ -180,13 +192,19 @@ export function Routine() {
       )}
 
       {slots.length > 0 && (
-        <motion.button
-          onClick={openAdd}
-          whileTap={{ scale: 0.92 }}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl font-light text-ink-950 shadow-glow"
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-md justify-end px-5"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.25rem)" }}
         >
-          +
-        </motion.button>
+          <motion.button
+            onClick={openAdd}
+            whileTap={{ scale: 0.92 }}
+            aria-label="Adicionar horário"
+            className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-3xl font-light leading-none text-ink-950 shadow-glow"
+          >
+            +
+          </motion.button>
+        </div>
       )}
 
       <SlotSheet
