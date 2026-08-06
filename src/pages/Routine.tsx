@@ -1,215 +1,128 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useStore } from "../store/useStore";
-import { RoutineBlock } from "../components/RoutineBlock";
+import { useFeedback } from "../store/useFeedback";
+import { ActivityPalette } from "../components/ActivityPalette";
+import { WeekGrid } from "../components/WeekGrid";
 import { SlotSheet } from "../components/SlotSheet";
-import {
-  WEEKDAY_SHORT_MON_FIRST,
-  WEEKDAY_FULL,
-  weekdayOf,
-  weekDates,
-  isToday,
-} from "../lib/date";
-import { slotsForWeekday } from "../lib/routine";
-import { computeSlotLayouts } from "../lib/overlapLayout";
-import {
-  TIMELINE_START,
-  TIMELINE_END,
-  timelineHeight,
-  formatTime,
-  PX_PER_MIN,
-} from "../lib/time";
+import { weekdayOf } from "../lib/date";
+import { parseTime, prettyTime } from "../lib/time";
 import type { RoutineSlot, Weekday } from "../types";
+
+const DEFAULT_DURATION = 60;
 
 export function Routine() {
   const data = useStore((s) => s.data);
-  const today = new Date();
-  const todayWd = weekdayOf(today);
-  const week = weekDates(today);
-  const [selected, setSelected] = useState<Weekday>(todayWd);
+  const addRoutineSlot = useStore((s) => s.addRoutineSlot);
+  const push = useFeedback((s) => s.push);
+
+  const [armedId, setArmedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [creatingHabit, setCreatingHabit] = useState(false);
   const [editing, setEditing] = useState<RoutineSlot | null>(null);
-  const updateRoutineSlot = useStore((s) => s.updateRoutineSlot);
-
-  function moveSlot(slotId: string, startTime: string) {
-    updateRoutineSlot(slotId, { startTime });
-  }
-
-  const slots = useMemo(
-    () => slotsForWeekday(data, selected),
-    [data, selected]
+  const [target, setTarget] = useState<{ weekday: Weekday; startTime: string }>(
+    () => ({ weekday: weekdayOf(), startTime: "09:00" })
   );
 
-  const layouts = useMemo(() => computeSlotLayouts(slots), [slots]);
+  const armed = useMemo(
+    () => data.habits.find((h) => h.id === armedId) ?? null,
+    [data.habits, armedId]
+  );
 
-  const hours = useMemo(() => {
-    const out: string[] = [];
-    for (let m = TIMELINE_START; m < TIMELINE_END; m += 60) {
-      out.push(formatTime(m));
-    }
-    return out;
-  }, []);
-
-  function openAdd() {
-    setEditing(null);
+  function openSheet(
+    weekday: Weekday,
+    startTime: string,
+    slot: RoutineSlot | null,
+    newHabit = false
+  ) {
+    setTarget({ weekday, startTime });
+    setEditing(slot);
+    setCreatingHabit(newHabit);
     setSheetOpen(true);
   }
 
-  function openEdit(slot: RoutineSlot) {
-    setEditing(slot);
-    setSheetOpen(true);
+  function handleEmptyTap(weekday: Weekday, startTime: string) {
+    if (armed) {
+      const durationMinutes = Math.max(
+        15,
+        Math.min(DEFAULT_DURATION, 24 * 60 - parseTime(startTime))
+      );
+      addRoutineSlot({
+        habitId: armed.id,
+        weekday,
+        startTime,
+        durationMinutes,
+      });
+      push(`${armed.name} · ${prettyTime(startTime)}`);
+      return;
+    }
+    openSheet(weekday, startTime, null);
   }
 
   return (
-    <div className="space-y-5">
-      <header>
-        <div className="text-xs uppercase tracking-[0.2em] text-white/40">Rotina</div>
-        <h1 className="text-2xl font-bold text-white">Sua semana</h1>
-        <p className="mt-1 text-sm text-white/45">
-          Arraste um bloco para mudar o horário · toque no ✎ para editar ou excluir.
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <header className="flex shrink-0 items-end justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">
+            Kaizen
+          </div>
+          <h1 className="text-xl font-bold leading-tight text-white">
+            Sua semana
+          </h1>
+        </div>
+        <span className="pb-1 text-[11px] text-white/35">
+          {data.routineSlots.length}{" "}
+          {data.routineSlots.length === 1 ? "bloco" : "blocos"}
+        </span>
       </header>
 
-      <section className="card p-2">
-        <div className="grid grid-cols-7 gap-1">
-          {week.map((date, i) => {
-            const wd = date.getDay() as Weekday;
-            const count = slotsForWeekday(data, wd).length;
-            const isCurrentDay = isToday(date);
-            const isSelected = wd === selected;
-            return (
+      <ActivityPalette
+        activeId={armedId}
+        onSelect={setArmedId}
+        onCreate={() => openSheet(target.weekday, target.startTime, null, true)}
+      />
+
+      <p className="shrink-0 text-[10px] leading-snug text-white/30">
+        Toque numa atividade e depois na semana · arraste o bloco pra mudar dia e
+        horário · puxe a base pra mudar a duração.
+      </p>
+
+      <WeekGrid
+        armedHabitId={armedId}
+        onEmptyTap={handleEmptyTap}
+        onEditSlot={(slot) => openSheet(slot.weekday, slot.startTime, slot)}
+      />
+
+      <AnimatePresence>
+        {armed && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="pointer-events-none fixed inset-x-0 z-40 mx-auto flex max-w-md justify-center px-5"
+            style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.25rem)" }}
+          >
+            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 shadow-glow">
+              <span className="truncate text-xs font-semibold text-ink-950">
+                Toque num horário para colocar “{armed.name}”
+              </span>
               <button
-                key={wd}
-                onClick={() => setSelected(wd)}
-                className="relative flex flex-col items-center gap-1 rounded-xl py-2 transition"
+                onClick={() => setArmedId(null)}
+                aria-label="Cancelar"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950/10 text-xs font-bold text-ink-950"
               >
-                <span
-                  className={`text-[11px] font-medium ${
-                    isCurrentDay || isSelected ? "text-white/70" : "text-white/40"
-                  }`}
-                >
-                  {WEEKDAY_SHORT_MON_FIRST[i]}
-                </span>
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition ${
-                    isCurrentDay
-                      ? "bg-white text-ink-950"
-                      : isSelected
-                      ? "bg-white/12 text-white ring-1 ring-white/30"
-                      : "text-white/55"
-                  }`}
-                >
-                  {date.getDate()}
-                </span>
-                <span className="flex h-1.5 items-center justify-center gap-0.5">
-                  {Array.from({ length: Math.min(count, 4) }).map((_, d) => (
-                    <span
-                      key={d}
-                      className={`h-1 w-1 rounded-full ${
-                        isCurrentDay ? "bg-white" : "bg-white/40"
-                      }`}
-                    />
-                  ))}
-                </span>
+                ✕
               </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-sm font-semibold text-white/80">{WEEKDAY_FULL[selected]}</h2>
-        <span className="text-xs text-white/40">
-          {slots.length} {slots.length === 1 ? "bloco" : "blocos"}
-        </span>
-      </div>
-
-      {slots.length === 0 ? (
-        <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">
-          <div className="text-3xl opacity-40">▦</div>
-          <p className="text-sm text-white/50">
-            Nada neste dia ainda. Toque em + para montar sua rotina.
-          </p>
-          <button
-            onClick={openAdd}
-            className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-ink-950"
-          >
-            Adicionar
-          </button>
-        </div>
-      ) : (
-        <section className="card relative max-h-[min(58vh,540px)] overflow-y-auto overscroll-contain">
-          <div className="flex min-h-0">
-            <div
-              className="relative w-11 shrink-0 border-r border-white/[0.06]"
-              style={{ height: timelineHeight() }}
-            >
-              {hours.map((h) => {
-                const top = (parseInt(h) * 60 - TIMELINE_START) * PX_PER_MIN;
-                return (
-                  <span
-                    key={h}
-                    className="absolute right-2 -translate-y-1/2 text-[10px] text-white/30"
-                    style={{ top }}
-                  >
-                    {parseInt(h)}h
-                  </span>
-                );
-              })}
             </div>
-            <div className="relative min-h-0 flex-1" style={{ height: timelineHeight() }}>
-              {hours.map((h) => {
-                const top = (parseInt(h) * 60 - TIMELINE_START) * PX_PER_MIN;
-                return (
-                  <div
-                    key={h}
-                    className="pointer-events-none absolute inset-x-0 border-t border-white/[0.04]"
-                    style={{ top }}
-                  />
-                );
-              })}
-              {slots.map((slot) => {
-                const habit = data.habits.find((h) => h.id === slot.habitId);
-                if (!habit) return null;
-                const category = data.categories.find((c) => c.id === habit.categoryId);
-                const layout = layouts.get(slot.id) ?? { column: 0, totalColumns: 1 };
-                return (
-                  <RoutineBlock
-                    key={slot.id}
-                    slot={slot}
-                    habit={habit}
-                    category={category}
-                    column={layout.column}
-                    totalColumns={layout.totalColumns}
-                    onEdit={() => openEdit(slot)}
-                    onTimeChange={moveSlot}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {slots.length > 0 && (
-        <div
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-md justify-end px-5"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.25rem)" }}
-        >
-          <motion.button
-            onClick={openAdd}
-            whileTap={{ scale: 0.92 }}
-            aria-label="Adicionar horário"
-            className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-3xl font-light leading-none text-ink-950 shadow-glow"
-          >
-            +
-          </motion.button>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <SlotSheet
         open={sheetOpen}
-        weekday={selected}
+        weekday={target.weekday}
+        defaultStart={target.startTime}
+        startAsNewHabit={creatingHabit}
         editing={editing}
         onClose={() => setSheetOpen(false)}
       />

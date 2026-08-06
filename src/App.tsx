@@ -8,19 +8,25 @@ import { Achievements } from "./pages/Achievements";
 import { Routine } from "./pages/Routine";
 import { Settings } from "./pages/Settings";
 
-const PAGES: Record<TabId, () => JSX.Element> = {
-  today: Today,
-  routine: Routine,
-  progress: Progress,
-  achievements: Achievements,
-  settings: Settings,
+interface PageConfig {
+  Component: () => JSX.Element;
+  /** Ocupa a altura toda da tela (sem scroll da página). */
+  fill?: boolean;
+}
+
+const PAGES: Record<TabId, PageConfig> = {
+  routine: { Component: Routine, fill: true },
+  today: { Component: Today },
+  progress: { Component: Progress },
+  achievements: { Component: Achievements },
+  settings: { Component: Settings },
 };
 
 export default function App() {
-  const [tab, setTab] = useState<TabId>("today");
+  const [tab, setTab] = useState<TabId>("routine");
   const targetTab = useNav((s) => s.targetTab);
   const clearTabTarget = useNav((s) => s.clearTabTarget);
-  const Page = PAGES[tab];
+  const { Component: Page, fill } = PAGES[tab];
 
   useEffect(() => {
     if (targetTab) {
@@ -30,7 +36,7 @@ export default function App() {
   }, [targetTab, clearTabTarget]);
 
   return (
-    <div className="relative mx-auto flex min-h-[100dvh] max-w-md flex-col bg-ink-950">
+    <div className="relative mx-auto flex h-[100dvh] max-w-md flex-col bg-ink-950">
       <div
         className="pointer-events-none fixed inset-0 z-0"
         style={{
@@ -39,11 +45,19 @@ export default function App() {
         }}
       />
       <Feedback />
-      <main className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-5 pb-32 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <div key={tab} className="animate-fade-up">
-          <Page />
-        </div>
-      </main>
+      {fill ? (
+        <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+          <div key={tab} className="flex min-h-0 flex-1 flex-col animate-fade-up">
+            <Page />
+          </div>
+        </main>
+      ) : (
+        <main className="relative z-10 flex-1 overflow-y-auto overscroll-contain px-5 pb-32 pt-[calc(env(safe-area-inset-top)+1rem)]">
+          <div key={tab} className="animate-fade-up">
+            <Page />
+          </div>
+        </main>
+      )}
       <TabBar active={tab} onChange={setTab} />
     </div>
   );

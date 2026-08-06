@@ -1,22 +1,32 @@
 import type { RoutineSlot } from "../types";
-import { parseTime, slotVisualEndMinutes } from "./time";
+import { parseTime } from "./time";
 
 export interface SlotLayout {
   column: number;
   totalColumns: number;
 }
 
-function visualEnd(slot: RoutineSlot): number {
-  return slotVisualEndMinutes(slot.startTime, slot.durationMinutes);
+type Ends = Map<string, number>;
+
+/** Fim visual do bloco: respeita a altura mínima usada na tela. */
+function buildEnds(slots: RoutineSlot[], minMinutes: number): Ends {
+  const ends: Ends = new Map();
+  for (const slot of slots) {
+    ends.set(
+      slot.id,
+      parseTime(slot.startTime) + Math.max(slot.durationMinutes, minMinutes)
+    );
+  }
+  return ends;
 }
 
-function slotsOverlap(a: RoutineSlot, b: RoutineSlot): boolean {
+function overlap(a: RoutineSlot, b: RoutineSlot, ends: Ends): boolean {
   const aStart = parseTime(a.startTime);
   const bStart = parseTime(b.startTime);
-  return aStart < visualEnd(b) && bStart < visualEnd(a);
+  return aStart < ends.get(b.id)! && bStart < ends.get(a.id)!;
 }
 
-function groupOverlapping(slots: RoutineSlot[]): RoutineSlot[][] {
+function groupOverlapping(slots: RoutineSlot[], ends: Ends): RoutineSlot[][] {
   const parent = new Map<string, string>();
   for (const s of slots) parent.set(s.id, s.id);
 
@@ -40,7 +50,7 @@ function groupOverlapping(slots: RoutineSlot[]): RoutineSlot[][] {
 
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
-      if (slotsOverlap(slots[i], slots[j])) unite(slots[i].id, slots[j].id);
+      if (overlap(slots[i], slots[j], ends)) unite(slots[i].id, slots[j].id);
     }
   }
 
@@ -53,12 +63,12 @@ function groupOverlapping(slots: RoutineSlot[]): RoutineSlot[][] {
   return [...groups.values()];
 }
 
-/** Máximo de blocos simultâneos (usa tamanho visual na tela). */
-function maxConcurrent(slots: RoutineSlot[]): number {
+/** Máximo de blocos simultâneos no grupo. */
+function maxConcurrent(slots: RoutineSlot[], ends: Ends): number {
   const points: { t: number; delta: number }[] = [];
   for (const s of slots) {
     points.push({ t: parseTime(s.startTime), delta: 1 });
-    points.push({ t: visualEnd(s), delta: -1 });
+    points.push({ t: ends.get(s.id)!, delta: -1 });
   }
   points.sort((a, b) => a.t - b.t || a.delta - b.delta);
   let cur = 0;
@@ -71,24 +81,29 @@ function maxConcurrent(slots: RoutineSlot[]): number {
 }
 
 /** Quantos blocos competem com este no instante em que ele começa. */
-function columnsAtStart(slot: RoutineSlot, group: RoutineSlot[]): number {
+function columnsAtStart(slot: RoutineSlot, group: RoutineSlot[], ends: Ends): number {
   const start = parseTime(slot.startTime);
   let count = 0;
   for (const other of group) {
-    if (parseTime(other.startTime) <= start && start < visualEnd(other)) count++;
+    if (parseTime(other.startTime) <= start && start < ends.get(other.id)!) count++;
   }
   return Math.max(1, count);
 }
 
-export function computeSlotLayouts(slots: RoutineSlot[]): Map<string, SlotLayout> {
+export function computeSlotLayouts(
+  slots: RoutineSlot[],
+  minMinutes = 0
+): Map<string, SlotLayout> {
   const layouts = new Map<string, SlotLayout>();
   if (slots.length === 0) return layouts;
 
-  for (const group of groupOverlapping(slots)) {
+  const ends = buildEnds(slots, minMinutes);
+
+  for (const group of groupOverlapping(slots, ends)) {
     const ordered = [...group].sort(
       (a, b) =>
         parseTime(a.startTime) - parseTime(b.startTime) ||
-        visualEnd(b) - visualEnd(a)
+        ends.get(b.id)! - ends.get(a.id)!
     );
 
     const columnEnds: number[] = [];
@@ -96,7 +111,7 @@ export function computeSlotLayouts(slots: RoutineSlot[]): Map<string, SlotLayout
 
     for (const slot of ordered) {
       const start = parseTime(slot.startTime);
-      const end = visualEnd(slot);
+      const end = ends.get(slot.id)!;
       let column = 0;
       while (column < columnEnds.length && columnEnds[column] > start) column++;
       if (column === columnEnds.length) columnEnds.push(end);
@@ -104,25 +119,19 @@ export function computeSlotLayouts(slots: RoutineSlot[]): Map<string, SlotLayout
       columns.set(slot.id, column);
     }
 
-    const groupMax = maxConcurrent(group);
+    const groupMax = maxConcurrent(group, ends);
 
     for (const slot of ordered) {
-      const atStart = columnsAtStart(slot, group);
       layouts.set(slot.id, {
         column: columns.get(slot.id) ?? 0,
-        totalColumns: Math.max(groupMax, atStart, columnEnds.length),
+        totalColumns: Math.max(
+          groupMax,
+          columnsAtStart(slot, group, ends),
+          columnEnds.length
+        ),
       });
     }
   }
 
   return layouts;
-}
-
-export function hasOverlaps(slots: RoutineSlot[]): boolean {
-  for (let i = 0; i < slots.length; i++) {
-    for (let j = i + 1; j < slots.length; j++) {
-      if (slotsOverlap(slots[i], slots[j])) return true;
-    }
-  }
-  return false;
 }

@@ -29,8 +29,15 @@ O nome do app é **Kaizen** (puro, sem sufixos como "routine" ou "do Davi"). Use
 
 ## Rotina (core)
 
-- A aba **Rotina** é onde o usuário monta a semana (seg–dom) com horários.
+- A aba **Rotina** é a tela inicial do app: abre direto na grade da semana inteira (seg–dom, colunas fixas).
 - Cada bloco (`RoutineSlot`) liga um hábito a um dia + horário + duração.
+- Interação da grade (`src/components/WeekGrid.tsx`, gestos com Pointer Events):
+  - tocar numa atividade da paleta (`ActivityPalette`) e depois num horário → cria o bloco ali;
+  - sem atividade selecionada, tocar num horário vazio abre o `SlotSheet` já com dia/hora preenchidos;
+  - arrastar o bloco muda dia e horário (snap de 15 min); puxar a base muda a duração;
+  - tocar no bloco abre o `SlotSheet` (editar/excluir).
+- A escala vertical é adaptativa (`src/lib/weekGrid.ts`): a janela de horas cresce só o necessário e o
+  `pxPerMin` tenta caber a semana inteira na tela. Mudanças aqui afetam legibilidade e área de toque.
 - A tela **Hoje** lista os blocos do dia ordenados por horário; conclusão é por slot (`slotLogs`).
 - **Ajustes** guarda a biblioteca de atividades/categorias; horários ficam só na Rotina.
 

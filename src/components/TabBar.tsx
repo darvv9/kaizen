@@ -1,8 +1,8 @@
 export type TabId = "today" | "routine" | "progress" | "achievements" | "settings";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: "today", label: "Hoje", icon: "◎" },
   { id: "routine", label: "Rotina", icon: "▦" },
+  { id: "today", label: "Hoje", icon: "◎" },
   { id: "progress", label: "Stats", icon: "▲" },
   { id: "achievements", label: "Medalhas", icon: "✦" },
   { id: "settings", label: "Ajustes", icon: "⚙" },

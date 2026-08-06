@@ -2,18 +2,34 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sheet } from "./Sheet";
 import { useStore } from "../store/useStore";
-import { DURATION_OPTIONS } from "../lib/time";
+import {
+  DURATION_OPTIONS,
+  parseTime,
+  prettyDuration,
+  prettyMinutes,
+  prettyTime,
+} from "../lib/time";
+import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
 import type { RoutineSlot, Weekday } from "../types";
-import { isLightColor } from "../lib/color";
+import { contrastInk } from "../lib/color";
 
 interface Props {
   open: boolean;
   weekday: Weekday;
+  defaultStart?: string;
+  startAsNewHabit?: boolean;
   editing: RoutineSlot | null;
   onClose: () => void;
 }
 
-export function SlotSheet({ open, weekday, editing, onClose }: Props) {
+export function SlotSheet({
+  open,
+  weekday,
+  defaultStart = "09:00",
+  startAsNewHabit = false,
+  editing,
+  onClose,
+}: Props) {
   const data = useStore((s) => s.data);
   const addRoutineSlot = useStore((s) => s.addRoutineSlot);
   const updateRoutineSlot = useStore((s) => s.updateRoutineSlot);
@@ -22,7 +38,8 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
 
   const [creatingHabit, setCreatingHabit] = useState(false);
   const [habitId, setHabitId] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
+  const [days, setDays] = useState<Weekday[]>([weekday]);
+  const [startTime, setStartTime] = useState(defaultStart);
   const [duration, setDuration] = useState(60);
   const [newName, setNewName] = useState("");
   const [newCat, setNewCat] = useState("");
@@ -30,16 +47,31 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setCreatingHabit(false);
+    setCreatingHabit(startAsNewHabit);
     setHabitId(editing?.habitId ?? data.habits[0]?.id ?? "");
-    setStartTime(editing?.startTime ?? "09:00");
+    setDays([editing?.weekday ?? weekday]);
+    setStartTime(editing?.startTime ?? defaultStart);
     setDuration(editing?.durationMinutes ?? 60);
     setNewName("");
     setNewCat(data.categories[0]?.id ?? "");
     setNewXp(20);
-  }, [open, editing, data.habits, data.categories]);
+  }, [open]);
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
+
+  function toggleDay(day: Weekday) {
+    if (editing) {
+      setDays([day]);
+      return;
+    }
+    setDays((prev) =>
+      prev.includes(day)
+        ? prev.length > 1
+          ? prev.filter((d) => d !== day)
+          : prev
+        : [...prev, day]
+    );
+  }
 
   function save() {
     let hid = habitId;
@@ -48,22 +80,24 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
       if (!name || !newCat) return;
       hid = addHabit({ categoryId: newCat, name, xp: newXp });
     }
-    if (!hid) return;
+    if (!hid || days.length === 0) return;
 
     if (editing) {
       updateRoutineSlot(editing.id, {
         habitId: hid,
-        weekday,
+        weekday: days[0],
         startTime,
         durationMinutes: duration,
       });
     } else {
-      addRoutineSlot({
-        habitId: hid,
-        weekday,
-        startTime,
-        durationMinutes: duration,
-      });
+      for (const day of days) {
+        addRoutineSlot({
+          habitId: hid,
+          weekday: day,
+          startTime,
+          durationMinutes: duration,
+        });
+      }
     }
     onClose();
   }
@@ -71,7 +105,7 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
   return (
     <Sheet
       open={open}
-      title={editing ? "Editar horário" : "Adicionar à rotina"}
+      title={editing ? "Editar bloco" : "Novo bloco"}
       onClose={onClose}
     >
       <div className="space-y-5">
@@ -80,15 +114,17 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
             Existente
           </TabBtn>
           <TabBtn active={creatingHabit} onClick={() => setCreatingHabit(true)}>
-            Novo
+            Nova atividade
           </TabBtn>
         </div>
 
         {!creatingHabit ? (
           <Field label="Atividade">
-            <div className="max-h-48 space-y-3 overflow-y-auto">
+            <div className="max-h-44 space-y-3 overflow-y-auto">
               {cats.map((cat) => {
-                const list = data.habits.filter((h) => h.categoryId === cat.id);
+                const list = data.habits.filter(
+                  (h) => h.categoryId === cat.id && !h.archived
+                );
                 if (list.length === 0) return null;
                 return (
                   <div key={cat.id}>
@@ -106,9 +142,7 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
                               habitId === h.id ? cat.color : "rgba(255,255,255,0.06)",
                             color:
                               habitId === h.id
-                                ? isLightColor(cat.color)
-                                  ? "#08080a"
-                                  : "#fff"
+                                ? contrastInk(cat.color)
                                 : "rgba(255,255,255,0.5)",
                           }}
                         >
@@ -139,13 +173,10 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
                     onClick={() => setNewCat(c.id)}
                     className="rounded-full px-3 py-1.5 text-sm"
                     style={{
-                      backgroundColor: newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
+                      backgroundColor:
+                        newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
                       color:
-                        newCat === c.id
-                          ? isLightColor(c.color)
-                            ? "#08080a"
-                            : "#fff"
-                          : "rgba(255,255,255,0.5)",
+                        newCat === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
                     }}
                   >
                     {c.icon} {c.name}
@@ -167,9 +198,33 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
           </>
         )}
 
-        <Field label="Horário">
+        <Field label={editing ? "Dia" : "Dias"}>
+          <div className="flex gap-1.5">
+            {WEEKDAYS_MON_FIRST.map((day, i) => {
+              const active = days.includes(day);
+              return (
+                <button
+                  key={day}
+                  onClick={() => toggleDay(day)}
+                  className={`flex-1 rounded-xl py-2 text-[11px] font-semibold transition ${
+                    active ? "bg-white text-ink-950" : "bg-ink-800 text-white/45"
+                  }`}
+                >
+                  {WEEKDAY_SHORT_MON_FIRST[i]}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
+        <Field
+          label={`Horário · ${prettyTime(startTime)} → ${prettyMinutes(
+            parseTime(startTime) + duration
+          )}`}
+        >
           <input
             type="time"
+            step={900}
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none [color-scheme:dark]"
@@ -186,7 +241,7 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
                   duration === d ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
                 }`}
               >
-                {d >= 60 ? `${d / 60}h` : `${d}min`}
+                {prettyDuration(d)}
               </button>
             ))}
           </div>
@@ -210,7 +265,11 @@ export function SlotSheet({ open, weekday, editing, onClose }: Props) {
             onClick={save}
             className="flex-1 rounded-xl bg-white py-3 text-sm font-semibold text-ink-950 shadow-glow"
           >
-            Salvar
+            {editing
+              ? "Salvar"
+              : days.length > 1
+              ? `Adicionar em ${days.length} dias`
+              : "Adicionar"}
           </button>
         </div>
       </div>
@@ -241,7 +300,11 @@ function TabBtn({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-2"
+    >
       <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
         {label}
       </label>
