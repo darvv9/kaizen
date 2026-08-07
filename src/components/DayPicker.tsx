@@ -1,4 +1,5 @@
 import { addDays, dayKey, isToday } from "../lib/date";
+import { Icon } from "./Icon";
 
 interface Props {
   date: Date;
@@ -14,10 +15,10 @@ export function DayPicker({ date, onChange }: Props) {
     <div className="flex items-center gap-2">
       <button
         onClick={() => onChange(addDays(date, -1))}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg text-white/70"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-white/70"
         aria-label="Dia anterior"
       >
-        ‹
+        <Icon name="chevron-left" size={18} />
       </button>
       {!isViewingToday && (
         <button
@@ -30,10 +31,10 @@ export function DayPicker({ date, onChange }: Props) {
       <button
         onClick={() => canGoForward && onChange(addDays(date, 1))}
         disabled={!canGoForward}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-lg text-white/70 disabled:opacity-25"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-white/70 disabled:opacity-25"
         aria-label="Próximo dia"
       >
-        ›
+        <Icon name="chevron-right" size={18} />
       </button>
     </div>
   );

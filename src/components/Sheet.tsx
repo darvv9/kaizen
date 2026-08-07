@@ -4,15 +4,18 @@ interface Props {
   open: boolean;
   title: string;
   onClose: () => void;
+  /** Sobe o empilhamento quando um sheet abre por cima de outro. */
+  z?: number;
   children: React.ReactNode;
 }
 
-export function Sheet({ open, title, onClose, children }: Props) {
+export function Sheet({ open, title, onClose, z = 55, children }: Props) {
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[55] flex items-end justify-center"
+          style={{ zIndex: z }}
+          className="fixed inset-0 flex items-end justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

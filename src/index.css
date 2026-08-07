@@ -43,6 +43,18 @@ body {
     @apply rounded-xl2 bg-ink-850/80 border border-white/[0.06];
   }
 
+  .icon {
+    display: inline-block;
+    flex-shrink: 0;
+    line-height: 0;
+  }
+
+  .icon > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   .safe-bottom {
     padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
   }

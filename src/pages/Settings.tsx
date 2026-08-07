@@ -1,18 +1,21 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
 import { Sheet } from "../components/Sheet";
-import { CATEGORY_COLORS, CATEGORY_ICONS } from "../data/defaults";
-import { isLightColor } from "../lib/color";
-import type { Habit } from "../types";
+import { Icon } from "../components/Icon";
+import { VariantSheet } from "../components/VariantSheet";
+import { CATEGORY_COLORS } from "../data/defaults";
+import { CATEGORY_ICON_NAMES, type IconName } from "../icons/names";
+import { contrastInk } from "../lib/color";
+import { storage } from "../data/storage";
+import { media } from "../data/media";
+import { formatBytes } from "../lib/physique";
+import { requestNotificationPermission, supportsBadge } from "../lib/badge";
+import type { Category, Habit, HabitVariant } from "../types";
 
 export function Settings() {
   const data = useStore((s) => s.data);
-  const addHabit = useStore((s) => s.addHabit);
-  const updateHabit = useStore((s) => s.updateHabit);
-  const deleteHabit = useStore((s) => s.deleteHabit);
-  const addCategory = useStore((s) => s.addCategory);
   const deleteCategory = useStore((s) => s.deleteCategory);
   const exportData = useStore((s) => s.exportData);
   const importData = useStore((s) => s.importData);
@@ -20,20 +23,15 @@ export function Settings() {
   const push = useFeedback((s) => s.push);
 
   const [habitSheet, setHabitSheet] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [catSheet, setCatSheet] = useState(false);
-  const [editing, setEditing] = useState<Habit | null>(null);
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [legacy, setLegacy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const cats = [...data.categories].sort((a, b) => a.order - b.order);
+  useEffect(() => setLegacy(storage.hasLegacy()), []);
 
-  function openNewHabit() {
-    setEditing(null);
-    setHabitSheet(true);
-  }
-  function openEditHabit(h: Habit) {
-    setEditing(h);
-    setHabitSheet(true);
-  }
+  const cats = [...data.categories].sort((a, b) => a.order - b.order);
 
   function handleExport() {
     const blob = new Blob([exportData()], { type: "application/json" });
@@ -42,8 +40,8 @@ export function Settings() {
     a.href = url;
     a.download = `kaizen-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    URL.revokeObjectURL(url);
-    push("Backup exportado", "xp");
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    push("Backup exportado", "success");
   }
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -52,7 +50,7 @@ export function Settings() {
     const reader = new FileReader();
     reader.onload = () => {
       const ok = importData(String(reader.result));
-      push(ok ? "Backup restaurado" : "Arquivo inválido", ok ? "level" : "xp");
+      push(ok ? "Backup restaurado" : "Arquivo inválido", ok ? "success" : "error");
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -61,72 +59,82 @@ export function Settings() {
   return (
     <div className="space-y-6">
       <header>
-        <div className="text-xs uppercase tracking-[0.2em] text-white/40">Ajustes</div>
-        <h1 className="text-2xl font-bold text-white">Biblioteca</h1>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Ajustes</div>
+        <h1 className="text-xl font-bold text-white">Biblioteca</h1>
         <p className="mt-1 text-sm text-white/45">
-          Atividades e categorias. Horários ficam na aba Rotina.
+          Atividades, variações e categorias. Dias e horários ficam na Semana.
         </p>
       </header>
 
       <div className="flex gap-3">
         <button
-          onClick={openNewHabit}
-          className="flex-1 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow"
+          onClick={() => {
+            setEditingHabit(null);
+            setHabitSheet(true);
+          }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow"
         >
-          + Hábito
+          <Icon name="plus" size={15} /> Atividade
         </button>
         <button
-          onClick={() => setCatSheet(true)}
-          className="flex-1 rounded-2xl bg-ink-700 py-3 text-sm font-semibold text-white"
+          onClick={() => {
+            setEditingCat(null);
+            setCatSheet(true);
+          }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-ink-700 py-3 text-sm font-semibold text-white"
         >
-          + Categoria
+          <Icon name="plus" size={15} /> Categoria
         </button>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {cats.map((cat) => {
           const habits = data.habits.filter((h) => h.categoryId === cat.id);
           return (
             <section key={cat.id} className="card p-4">
               <div className="mb-3 flex items-center gap-2">
-                <span className="text-lg">{cat.icon}</span>
+                <Icon name={cat.icon} size={17} style={{ color: cat.color }} />
                 <span className="font-semibold text-white">{cat.name}</span>
-                <span
-                  className="ml-1 h-2 w-2 rounded-full"
-                  style={{ backgroundColor: cat.color }}
-                />
                 <button
                   onClick={() => {
-                    if (confirm(`Excluir categoria "${cat.name}" e seus hábitos?`)) {
-                      deleteCategory(cat.id);
-                    }
+                    setEditingCat(cat);
+                    setCatSheet(true);
                   }}
-                  className="ml-auto text-xs text-white/40 hover:text-red-400"
+                  aria-label={`Editar ${cat.name}`}
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] text-white/50"
                 >
-                  excluir
+                  <Icon name="pencil" size={13} />
                 </button>
               </div>
               <div className="space-y-2">
                 {habits.map((h) => (
                   <button
                     key={h.id}
-                    onClick={() => openEditHabit(h)}
+                    onClick={() => {
+                      setEditingHabit(h);
+                      setHabitSheet(true);
+                    }}
                     className="flex w-full items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left"
                   >
-                    <span className="flex-1 text-sm text-white/90">{h.name}</span>
-                    <span className="text-xs text-white/40">
-                      {data.routineSlots.filter((s) => s.habitId === h.id).length} na rotina
+                    <span className="min-w-0 flex-1 truncate text-sm text-white/90">
+                      {h.name}
                     </span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                      style={{ backgroundColor: `${cat.color}1f`, color: cat.color }}
-                    >
-                      +{h.xp}
+                    {h.variants.length > 0 && (
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ backgroundColor: `${cat.color}1f`, color: cat.color }}
+                      >
+                        {h.variants.length}{" "}
+                        {h.variants.length === 1 ? "variação" : "variações"}
+                      </span>
+                    )}
+                    <span className="shrink-0 text-[11px] text-white/35">
+                      {data.routineSlots.filter((s) => s.habitId === h.id).length} na semana
                     </span>
                   </button>
                 ))}
                 {habits.length === 0 && (
-                  <div className="px-1 py-2 text-xs text-white/35">Sem hábitos ainda.</div>
+                  <div className="px-1 py-2 text-xs text-white/35">Sem atividades ainda.</div>
                 )}
               </div>
             </section>
@@ -134,11 +142,13 @@ export function Settings() {
         })}
       </div>
 
+      <PhysiqueSettings />
+
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-white/80">Backup</h2>
         <p className="text-xs leading-relaxed text-white/45">
-          Seus dados ficam salvos só neste dispositivo. Exporte um backup para não
-          perder nada (a sincronização na nuvem chega no futuro).
+          Seus dados ficam só neste aparelho. O backup guarda a rotina e as datas dos vídeos —
+          os vídeos em si não cabem no arquivo; para guardar um vídeo, use Baixar na tela Físico.
         </p>
         <div className="flex gap-3">
           <button
@@ -161,11 +171,29 @@ export function Settings() {
             onChange={handleImportFile}
           />
         </div>
+        {legacy && (
+          <div className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
+            <span className="flex-1 text-[11px] leading-snug text-white/45">
+              Dados da versão antiga continuam guardados neste aparelho.
+            </span>
+            <button
+              onClick={() => {
+                if (confirm("Apagar os dados da versão antiga? Não afeta o app atual.")) {
+                  storage.clearLegacy();
+                  setLegacy(false);
+                }
+              }}
+              className="shrink-0 text-[11px] font-medium text-white/40"
+            >
+              Apagar
+            </button>
+          </div>
+        )}
         <button
           onClick={() => {
-            if (confirm("Resetar tudo para o padrão? Isso apaga seu progresso.")) {
+            if (confirm("Resetar tudo para o padrão? Isso apaga sua rotina.")) {
               resetData();
-              push("App resetado", "xp");
+              push("App resetado", "success");
             }
           }}
           className="w-full rounded-xl border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
@@ -178,194 +206,361 @@ export function Settings() {
 
       <HabitSheet
         open={habitSheet}
-        editing={editing}
+        editing={editingHabit}
         onClose={() => setHabitSheet(false)}
-        onSave={(payload) => {
-          if (editing) {
-            updateHabit(editing.id, payload);
-          } else {
-            addHabit(payload);
-          }
-          setHabitSheet(false);
-        }}
-        onDelete={
-          editing
-            ? () => {
-                deleteHabit(editing.id);
-                setHabitSheet(false);
-              }
-            : undefined
-        }
       />
 
       <CategorySheet
         open={catSheet}
+        editing={editingCat}
         onClose={() => setCatSheet(false)}
-        onSave={(payload) => {
-          addCategory(payload);
-          setCatSheet(false);
+        onDelete={(cat) => {
+          const habits = data.habits.filter((h) => h.categoryId === cat.id);
+          const slots = data.routineSlots.filter((s) =>
+            habits.some((h) => h.id === s.habitId)
+          );
+          if (
+            confirm(
+              `Excluir "${cat.name}"? Vão junto ${habits.length} atividade(s) e ${slots.length} bloco(s) da semana.`
+            )
+          ) {
+            deleteCategory(cat.id);
+            setCatSheet(false);
+          }
         }}
       />
     </div>
   );
 }
 
-interface HabitPayload {
-  categoryId: string;
-  name: string;
-  xp: number;
-  target: number;
+const INTERVAL_OPTIONS = [7, 14, 21, 30];
+
+function PhysiqueSettings() {
+  const physique = useStore((s) => s.data.physique);
+  const setPhysiqueInterval = useStore((s) => s.setPhysiqueInterval);
+  const clearPhysiqueEntries = useStore((s) => s.clearPhysiqueEntries);
+  const setBadgeEnabled = useStore((s) => s.setBadgeEnabled);
+  const push = useFeedback((s) => s.push);
+  const [used, setUsed] = useState<number | null>(null);
+  const badgeEnabled = physique.badgeEnabled === true;
+
+  useEffect(() => {
+    media
+      .usedBytes()
+      .then(setUsed)
+      .catch(() => setUsed(null));
+  }, [physique.entries.length]);
+
+  return (
+    <section className="card space-y-3 p-4">
+      <h2 className="text-sm font-semibold text-white/80">Físico</h2>
+      <div className="space-y-2">
+        <span className="block text-xs font-medium uppercase tracking-wide text-white/45">
+          Pedir vídeo a cada
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {INTERVAL_OPTIONS.map((days) => (
+            <button
+              key={days}
+              onClick={() => setPhysiqueInterval(days)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                physique.intervalDays === days
+                  ? "bg-accent text-ink-950"
+                  : "bg-ink-800 text-white/50"
+              }`}
+            >
+              {days} dias
+            </button>
+          ))}
+        </div>
+      </div>
+      {supportsBadge() && (
+        <div className="space-y-2">
+          <button
+            onClick={async () => {
+              if (badgeEnabled) {
+                setBadgeEnabled(false);
+                return;
+              }
+              const ok = await requestNotificationPermission();
+              if (!ok) {
+                push("Permissão de notificação negada", "error");
+                return;
+              }
+              setBadgeEnabled(true);
+            }}
+            className="flex w-full items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left"
+          >
+            <span className="flex-1 text-sm text-white/85">Aviso no ícone do app</span>
+            <span
+              className={`flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 transition ${
+                badgeEnabled ? "bg-accent" : "bg-ink-600"
+              }`}
+            >
+              <span
+                className={`h-5 w-5 rounded-full bg-white transition-transform ${
+                  badgeEnabled ? "translate-x-4" : ""
+                }`}
+                style={badgeEnabled ? { backgroundColor: "#08080a" } : undefined}
+              />
+            </span>
+          </button>
+          <p className="text-[11px] leading-relaxed text-white/35">
+            Bolinha no ícone quando o vídeo vencer. Só funciona com o Kaizen instalado na tela
+            de início, e atualiza quando você abre o app — notificação de verdade precisaria de
+            um servidor.
+          </p>
+        </div>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-white/40">
+        {physique.entries.length} vídeo(s)
+        {used !== null && used > 0 ? ` · ${formatBytes(used)} neste aparelho` : ""}.
+      </p>
+      {physique.entries.length > 0 && (
+        <button
+          onClick={async () => {
+            if (!confirm("Apagar todos os vídeos do físico? Não dá pra desfazer.")) return;
+            const ids = clearPhysiqueEntries();
+            await media.removeMany(ids).catch(() => {});
+            setUsed(0);
+            push("Vídeos apagados", "success");
+          }}
+          className="w-full rounded-xl border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
+        >
+          Apagar todos os vídeos
+        </button>
+      )}
+    </section>
+  );
 }
 
 function HabitSheet({
   open,
   editing,
   onClose,
-  onSave,
-  onDelete,
 }: {
   open: boolean;
   editing: Habit | null;
   onClose: () => void;
-  onSave: (p: HabitPayload) => void;
-  onDelete?: () => void;
 }) {
   const cats = useStore((s) => [...s.data.categories].sort((a, b) => a.order - b.order));
+  const habit = useStore((s) => s.data.habits.find((h) => h.id === editing?.id) ?? null);
+  const addHabit = useStore((s) => s.addHabit);
+  const updateHabit = useStore((s) => s.updateHabit);
+  const deleteHabit = useStore((s) => s.deleteHabit);
+  const addVariant = useStore((s) => s.addVariant);
 
   const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState(cats[0]?.id ?? "");
-  const [xp, setXp] = useState(20);
+  const [categoryId, setCategoryId] = useState("");
+  const [variantSheet, setVariantSheet] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(null);
 
-  const lastKey = useRef<string>("");
-  const key = `${open}-${editing?.id ?? "new"}`;
-  if (open && key !== lastKey.current) {
-    lastKey.current = key;
+  useEffect(() => {
+    if (!open) return;
     setName(editing?.name ?? "");
     setCategoryId(editing?.categoryId ?? cats[0]?.id ?? "");
-    setXp(editing?.xp ?? 20);
-  }
+    setVariantSheet(false);
+    setEditingVariant(null);
+  }, [open]);
 
   const valid = name.trim().length > 0 && categoryId;
 
+  function save() {
+    if (!valid) return;
+    if (editing) updateHabit(editing.id, { name: name.trim(), categoryId });
+    else addHabit({ categoryId, name });
+    onClose();
+  }
+
   return (
-    <Sheet open={open} title={editing ? "Editar hábito" : "Novo hábito"} onClose={onClose}>
-      <div className="space-y-5">
-        <Field label="Nome">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Treino de força"
-            className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
-          />
-        </Field>
+    <>
+      <Sheet
+        open={open}
+        title={editing ? "Editar atividade" : "Nova atividade"}
+        onClose={onClose}
+      >
+        <div className="space-y-5">
+          <Field label="Nome">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Academia"
+              className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
+            />
+          </Field>
 
-        <Field label="Categoria">
-          <div className="flex flex-wrap gap-2">
-            {cats.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCategoryId(c.id)}
-                className="rounded-full px-3 py-1.5 text-sm transition"
-                style={{
-                  backgroundColor:
-                    categoryId === c.id ? c.color : "rgba(255,255,255,0.06)",
-                  color:
-                    categoryId === c.id
-                      ? isLightColor(c.color)
-                        ? "#08080a"
-                        : "#ffffff"
-                      : "rgba(255,255,255,0.5)",
-                }}
-              >
-                {c.icon} {c.name}
-              </button>
-            ))}
-          </div>
-        </Field>
+          <Field label="Categoria">
+            <div className="flex flex-wrap gap-2">
+              {cats.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoryId(c.id)}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition"
+                  style={{
+                    backgroundColor:
+                      categoryId === c.id ? c.color : "rgba(255,255,255,0.06)",
+                    color:
+                      categoryId === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  <Icon name={c.icon} size={13} />
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </Field>
 
-        <Field label={`Recompensa: ${xp} XP`}>
-          <input
-            type="range"
-            min={5}
-            max={50}
-            step={5}
-            value={xp}
-            onChange={(e) => setXp(Number(e.target.value))}
-            className="w-full accent-accent"
-          />
-        </Field>
-
-        <p className="text-xs leading-relaxed text-white/40">
-          Para definir dias e horários, use a aba Rotina depois de salvar.
-        </p>
-
-        <div className="flex gap-3 pt-1">
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              className="rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
-            >
-              Excluir
-            </button>
+          {habit ? (
+            <Field label="Variações">
+              <div className="flex flex-wrap gap-2">
+                {habit.variants.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setEditingVariant(v);
+                      setVariantSheet(true);
+                    }}
+                    className="rounded-full bg-ink-800 px-3 py-1.5 text-sm text-white/75"
+                  >
+                    {v.name}
+                    {v.items.length > 0 && (
+                      <span className="ml-1.5 text-[11px] text-white/35">
+                        {v.items.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setEditingVariant(null);
+                    setVariantSheet(true);
+                  }}
+                  className="flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
+                >
+                  <Icon name="plus" size={13} /> Nova
+                </button>
+              </div>
+              {habit.variants.length === 0 && (
+                <button
+                  onClick={() => {
+                    addVariant(habit.id, "Treino A");
+                    addVariant(habit.id, "Treino B");
+                    addVariant(habit.id, "Treino C");
+                  }}
+                  className="mt-1 text-[11px] font-medium text-white/45 underline underline-offset-2"
+                >
+                  criar Treino A · B · C
+                </button>
+              )}
+              <p className="text-[11px] leading-relaxed text-white/35">
+                Ex: Treino A/B/C na academia, No-gi/Gi no jiu. A composição de cada uma fica
+                guardada aqui.
+              </p>
+            </Field>
+          ) : (
+            <p className="text-xs leading-relaxed text-white/40">
+              Salve para configurar as variações (Treino A/B/C, No-gi/Gi).
+            </p>
           )}
-          <button
-            disabled={!valid}
-            onClick={() => onSave({ categoryId, name, xp, target: 1 })}
-            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
-          >
-            Salvar
-          </button>
+
+          <div className="flex gap-3 pt-1">
+            {editing && (
+              <button
+                onClick={() => {
+                  if (confirm(`Excluir "${editing.name}" e seus blocos da semana?`)) {
+                    deleteHabit(editing.id);
+                    onClose();
+                  }
+                }}
+                className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+              >
+                <Icon name="trash" size={16} /> Excluir
+              </button>
+            )}
+            <button
+              disabled={!valid}
+              onClick={save}
+              className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
+            >
+              Salvar
+            </button>
+          </div>
         </div>
-      </div>
-    </Sheet>
+      </Sheet>
+
+      {habit && (
+        <VariantSheet
+          open={variantSheet}
+          habitId={habit.id}
+          editing={editingVariant}
+          onClose={() => setVariantSheet(false)}
+        />
+      )}
+    </>
   );
 }
 
 function CategorySheet({
   open,
+  editing,
   onClose,
-  onSave,
+  onDelete,
 }: {
   open: boolean;
+  editing: Category | null;
   onClose: () => void;
-  onSave: (p: { name: string; color: string; icon: string }) => void;
+  onDelete: (cat: Category) => void;
 }) {
+  const addCategory = useStore((s) => s.addCategory);
+  const updateCategory = useStore((s) => s.updateCategory);
+
   const [name, setName] = useState("");
   const [color, setColor] = useState(CATEGORY_COLORS[0]);
-  const [icon, setIcon] = useState(CATEGORY_ICONS[0]);
+  const [icon, setIcon] = useState<IconName>(CATEGORY_ICON_NAMES[0]);
 
-  const lastOpen = useRef(false);
-  if (open && !lastOpen.current) {
-    lastOpen.current = true;
-    setName("");
-    setColor(CATEGORY_COLORS[0]);
-    setIcon(CATEGORY_ICONS[0]);
+  useEffect(() => {
+    if (!open) return;
+    setName(editing?.name ?? "");
+    setColor(editing?.color ?? CATEGORY_COLORS[0]);
+    setIcon(editing?.icon ?? CATEGORY_ICON_NAMES[0]);
+  }, [open]);
+
+  function save() {
+    if (!name.trim()) return;
+    if (editing) updateCategory(editing.id, { name: name.trim(), color, icon });
+    else addCategory({ name, color, icon });
+    onClose();
   }
-  if (!open) lastOpen.current = false;
 
   return (
-    <Sheet open={open} title="Nova categoria" onClose={onClose}>
+    <Sheet
+      open={open}
+      title={editing ? "Editar categoria" : "Nova categoria"}
+      onClose={onClose}
+    >
       <div className="space-y-5">
         <Field label="Nome">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Meditação"
+            placeholder="Ex: Academia"
             className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
           />
         </Field>
 
         <Field label="Ícone">
           <div className="flex flex-wrap gap-2">
-            {CATEGORY_ICONS.map((ic) => (
+            {CATEGORY_ICON_NAMES.map((ic) => (
               <button
                 key={ic}
                 onClick={() => setIcon(ic)}
-                className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl transition ${
-                  icon === ic ? "bg-accent" : "bg-ink-800"
+                aria-label={ic}
+                className={`flex h-11 w-11 items-center justify-center rounded-xl transition ${
+                  icon === ic ? "bg-accent text-ink-950" : "bg-ink-800 text-white/70"
                 }`}
               >
-                {ic}
+                <Icon name={ic} size={20} />
               </button>
             ))}
           </div>
@@ -377,6 +572,7 @@ function CategorySheet({
               <button
                 key={c}
                 onClick={() => setColor(c)}
+                aria-label={`Cor ${c}`}
                 className="h-9 w-9 rounded-full ring-2 ring-offset-2 ring-offset-ink-850 transition"
                 style={{
                   backgroundColor: c,
@@ -388,13 +584,23 @@ function CategorySheet({
           </div>
         </Field>
 
-        <button
-          disabled={!name.trim()}
-          onClick={() => onSave({ name, color, icon })}
-          className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
-        >
-          Criar categoria
-        </button>
+        <div className="flex gap-3 pt-1">
+          {editing && (
+            <button
+              onClick={() => onDelete(editing)}
+              className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+            >
+              <Icon name="trash" size={16} /> Excluir
+            </button>
+          )}
+          <button
+            disabled={!name.trim()}
+            onClick={save}
+            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
+          >
+            Salvar
+          </button>
+        </div>
       </div>
     </Sheet>
   );

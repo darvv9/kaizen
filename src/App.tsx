@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { TabBar, type TabId } from "./components/TabBar";
 import { Feedback } from "./components/Feedback";
 import { useNav } from "./store/useNav";
+import { useStore } from "./store/useStore";
+import { shouldNagToday } from "./lib/physique";
+import { syncBadge } from "./lib/badge";
 import { Today } from "./pages/Today";
-import { Progress } from "./pages/Progress";
-import { Achievements } from "./pages/Achievements";
-import { Routine } from "./pages/Routine";
+import { Week } from "./pages/Week";
+import { Physique } from "./pages/Physique";
 import { Settings } from "./pages/Settings";
 
 interface PageConfig {
@@ -15,25 +17,16 @@ interface PageConfig {
 }
 
 const PAGES: Record<TabId, PageConfig> = {
-  routine: { Component: Routine, fill: true },
   today: { Component: Today },
-  progress: { Component: Progress },
-  achievements: { Component: Achievements },
+  week: { Component: Week, fill: true },
+  physique: { Component: Physique },
   settings: { Component: Settings },
 };
 
 export default function App() {
-  const [tab, setTab] = useState<TabId>("routine");
-  const targetTab = useNav((s) => s.targetTab);
-  const clearTabTarget = useNav((s) => s.clearTabTarget);
+  const tab = useNav((s) => s.tab);
   const { Component: Page, fill } = PAGES[tab];
-
-  useEffect(() => {
-    if (targetTab) {
-      setTab(targetTab);
-      clearTabTarget();
-    }
-  }, [targetTab, clearTabTarget]);
+  usePhysiqueBadge();
 
   return (
     <div className="relative mx-auto flex h-[100dvh] max-w-md flex-col bg-ink-950">
@@ -58,7 +51,26 @@ export default function App() {
           </div>
         </main>
       )}
-      <TabBar active={tab} onChange={setTab} />
+      <TabBar />
     </div>
   );
+}
+
+/** Sem servidor o badge só atualiza com o app aberto — sincroniza no que dá. */
+function usePhysiqueBadge() {
+  const data = useStore((s) => s.data);
+  const enabled = data.physique.badgeEnabled === true;
+
+  useEffect(() => {
+    const update = () => {
+      if (!enabled) {
+        syncBadge(0);
+        return;
+      }
+      syncBadge(shouldNagToday(useStore.getState().data) ? 1 : 0);
+    };
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, [enabled, data.physique.entries.length, data.physique.intervalDays]);
 }

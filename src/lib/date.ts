@@ -18,33 +18,12 @@ export function weekdayOf(date: Date = new Date()): Weekday {
   return date.getDay() as Weekday;
 }
 
-/** Últimos N dias terminando hoje (mais antigo primeiro). */
-export function lastNDays(n: number, from: Date = new Date()): Date[] {
-  const out: Date[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    out.push(addDays(from, -i));
-  }
-  return out;
-}
-
 /** Datas de Segunda → Domingo da semana que contém `from`. */
 export function weekDates(from: Date = new Date()): Date[] {
   const offsetToMonday = (from.getDay() + 6) % 7;
   const monday = addDays(from, -offsetToMonday);
   return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 }
-
-export const WEEKDAY_LABELS = ["D", "S", "T", "Q", "Q", "S", "S"];
-export const WEEKDAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-export const WEEKDAY_FULL = [
-  "Domingo",
-  "Segunda",
-  "Terça",
-  "Quarta",
-  "Quinta",
-  "Sexta",
-  "Sábado",
-];
 
 /** Segunda → Domingo (valores JS: 1,2,3,4,5,6,0). */
 export const WEEKDAYS_MON_FIRST: Weekday[] = [1, 2, 3, 4, 5, 6, 0];

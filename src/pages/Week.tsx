@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
 import { ActivityPalette } from "../components/ActivityPalette";
+import { Icon } from "../components/Icon";
 import { WeekGrid } from "../components/WeekGrid";
 import { SlotSheet } from "../components/SlotSheet";
 import { weekdayOf } from "../lib/date";
@@ -11,7 +12,7 @@ import type { RoutineSlot, Weekday } from "../types";
 
 const DEFAULT_DURATION = 60;
 
-export function Routine() {
+export function Week() {
   const data = useStore((s) => s.data);
   const addRoutineSlot = useStore((s) => s.addRoutineSlot);
   const push = useFeedback((s) => s.push);
@@ -28,6 +29,21 @@ export function Routine() {
     () => data.habits.find((h) => h.id === armedId) ?? null,
     [data.habits, armedId]
   );
+
+  /** Quantos blocos por categoria na semana — o que ele quer ver de relance. */
+  const summary = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const slot of data.routineSlots) {
+      const habit = data.habits.find((h) => h.id === slot.habitId);
+      if (!habit) continue;
+      counts.set(habit.categoryId, (counts.get(habit.categoryId) ?? 0) + 1);
+    }
+    return data.categories
+      .filter((c) => counts.has(c.id))
+      .map((c) => ({ category: c, count: counts.get(c.id)! }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  }, [data.routineSlots, data.habits, data.categories]);
 
   function openSheet(
     weekday: Weekday,
@@ -64,16 +80,25 @@ export function Routine() {
       <header className="flex shrink-0 items-end justify-between gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">
-            Kaizen
+            Semana
           </div>
           <h1 className="text-xl font-bold leading-tight text-white">
             Sua semana
           </h1>
         </div>
-        <span className="pb-1 text-[11px] text-white/35">
-          {data.routineSlots.length}{" "}
-          {data.routineSlots.length === 1 ? "bloco" : "blocos"}
-        </span>
+        <div className="flex shrink-0 items-center gap-2.5 pb-1">
+          {summary.map(({ category, count }) => (
+            <span
+              key={category.id}
+              className="flex items-center gap-1 text-[11px] font-semibold"
+              style={{ color: category.color }}
+              title={category.name}
+            >
+              <Icon name={category.icon} size={13} />
+              {count}
+            </span>
+          ))}
+        </div>
       </header>
 
       <ActivityPalette
@@ -109,9 +134,9 @@ export function Routine() {
               <button
                 onClick={() => setArmedId(null)}
                 aria-label="Cancelar"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950/10 text-xs font-bold text-ink-950"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950/10 text-ink-950"
               >
-                ✕
+                <Icon name="close" size={13} />
               </button>
             </div>
           </motion.div>

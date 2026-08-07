@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sheet } from "./Sheet";
+import { Icon } from "./Icon";
 import { useStore } from "../store/useStore";
-import {
-  DURATION_OPTIONS,
-  parseTime,
-  prettyDuration,
-  prettyMinutes,
-  prettyTime,
-} from "../lib/time";
+import { DURATION_OPTIONS, parseTime, prettyDuration, prettyMinutes, prettyTime } from "../lib/time";
 import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
 import type { RoutineSlot, Weekday } from "../types";
 import { contrastInk } from "../lib/color";
@@ -38,26 +33,33 @@ export function SlotSheet({
 
   const [creatingHabit, setCreatingHabit] = useState(false);
   const [habitId, setHabitId] = useState("");
+  const [variantId, setVariantId] = useState("");
   const [days, setDays] = useState<Weekday[]>([weekday]);
   const [startTime, setStartTime] = useState(defaultStart);
   const [duration, setDuration] = useState(60);
   const [newName, setNewName] = useState("");
   const [newCat, setNewCat] = useState("");
-  const [newXp, setNewXp] = useState(20);
 
   useEffect(() => {
     if (!open) return;
     setCreatingHabit(startAsNewHabit);
     setHabitId(editing?.habitId ?? data.habits[0]?.id ?? "");
+    setVariantId(editing?.variantId ?? "");
     setDays([editing?.weekday ?? weekday]);
     setStartTime(editing?.startTime ?? defaultStart);
     setDuration(editing?.durationMinutes ?? 60);
     setNewName("");
     setNewCat(data.categories[0]?.id ?? "");
-    setNewXp(20);
   }, [open]);
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
+  const habit = data.habits.find((h) => h.id === habitId);
+  const variants = creatingHabit ? [] : habit?.variants ?? [];
+
+  function pickHabit(id: string) {
+    setHabitId(id);
+    setVariantId("");
+  }
 
   function toggleDay(day: Weekday) {
     if (editing) {
@@ -78,36 +80,27 @@ export function SlotSheet({
     if (creatingHabit) {
       const name = newName.trim();
       if (!name || !newCat) return;
-      hid = addHabit({ categoryId: newCat, name, xp: newXp });
+      hid = addHabit({ categoryId: newCat, name });
     }
     if (!hid || days.length === 0) return;
 
+    const payload = {
+      habitId: hid,
+      startTime,
+      durationMinutes: duration,
+      ...(variantId ? { variantId } : {}),
+    };
+
     if (editing) {
-      updateRoutineSlot(editing.id, {
-        habitId: hid,
-        weekday: days[0],
-        startTime,
-        durationMinutes: duration,
-      });
+      updateRoutineSlot(editing.id, { ...payload, weekday: days[0] });
     } else {
-      for (const day of days) {
-        addRoutineSlot({
-          habitId: hid,
-          weekday: day,
-          startTime,
-          durationMinutes: duration,
-        });
-      }
+      for (const day of days) addRoutineSlot({ ...payload, weekday: day });
     }
     onClose();
   }
 
   return (
-    <Sheet
-      open={open}
-      title={editing ? "Editar bloco" : "Novo bloco"}
-      onClose={onClose}
-    >
+    <Sheet open={open} title={editing ? "Editar bloco" : "Novo bloco"} onClose={onClose}>
       <div className="space-y-5">
         <div className="flex gap-2">
           <TabBtn active={!creatingHabit} onClick={() => setCreatingHabit(false)}>
@@ -128,14 +121,15 @@ export function SlotSheet({
                 if (list.length === 0) return null;
                 return (
                   <div key={cat.id}>
-                    <div className="mb-1.5 text-xs text-white/40">
-                      {cat.icon} {cat.name}
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs text-white/40">
+                      <Icon name={cat.icon} size={13} />
+                      {cat.name}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {list.map((h) => (
                         <button
                           key={h.id}
-                          onClick={() => setHabitId(h.id)}
+                          onClick={() => pickHabit(h.id)}
                           className="rounded-full px-3 py-1.5 text-sm transition"
                           style={{
                             backgroundColor:
@@ -161,7 +155,7 @@ export function SlotSheet({
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ex: Treino de força"
+                placeholder="Ex: Academia"
                 className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
               />
             </Field>
@@ -171,7 +165,7 @@ export function SlotSheet({
                   <button
                     key={c.id}
                     onClick={() => setNewCat(c.id)}
-                    className="rounded-full px-3 py-1.5 text-sm"
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
                     style={{
                       backgroundColor:
                         newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
@@ -179,23 +173,39 @@ export function SlotSheet({
                         newCat === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
                     }}
                   >
-                    {c.icon} {c.name}
+                    <Icon name={c.icon} size={13} />
+                    {c.name}
                   </button>
                 ))}
               </div>
             </Field>
-            <Field label={`XP: ${newXp}`}>
-              <input
-                type="range"
-                min={5}
-                max={50}
-                step={5}
-                value={newXp}
-                onChange={(e) => setNewXp(Number(e.target.value))}
-                className="w-full accent-white"
-              />
-            </Field>
           </>
+        )}
+
+        {variants.length > 0 && (
+          <Field label="Variação">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setVariantId("")}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  variantId === "" ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                }`}
+              >
+                Nenhuma
+              </button>
+              {variants.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => setVariantId(v.id)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                    variantId === v.id ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                  }`}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+          </Field>
         )}
 
         <Field label={editing ? "Dia" : "Dias"}>
@@ -258,7 +268,7 @@ export function SlotSheet({
               }}
               className="flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-400"
             >
-              <span aria-hidden>🗑</span> Excluir
+              <Icon name="trash" size={16} /> Excluir
             </button>
           )}
           <button

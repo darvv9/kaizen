@@ -1,48 +1,74 @@
 # Kaizen
 
-App de rotina pessoal (PWA) com estética minimalista dark estilo Apple, animações fluidas e gamificação (XP, níveis, streaks, anéis de progresso). Instalável na tela de início do iPhone.
+App de rotina pessoal (PWA) com estética minimalista dark estilo Apple e animações fluidas. Instalável na tela de início do iPhone.
 
 O nome do app é **Kaizen** (puro, sem sufixos como "routine" ou "do Davi"). Use sempre apenas "Kaizen".
+
+O foco é concreto: **ver os dias que tem academia e os dias que tem jiu-jitsu**, limpar o checklist do dia e acompanhar a evolução física por vídeo. Nada de XP, níveis ou medalhas — a gamificação foi removida de propósito.
 
 ## Stack
 
 - Vite + React + TypeScript
 - Tailwind CSS (tema dark, tokens em `tailwind.config.js`)
 - Framer Motion (animações estilo Apple)
-- Zustand + middleware `persist` (estado global)
+- Zustand (a persistência é manual: cada action chama `persist()`, não é o middleware `persist`)
 - vite-plugin-pwa (manifest, service worker, ícone, instalável no iOS)
 
 ## Arquitetura de dados (IMPORTANTE)
 
-- **Hoje:** persistência 100% local no dispositivo via `src/data/storage.ts`, que é um adapter isolado. Toda a UI e o store consomem esse adapter, nunca o `localStorage` direto.
-- **Futuro:** o usuário terá mais dispositivos Apple e vai querer **sincronização na nuvem**. Quando isso acontecer, basta trocar a implementação de `src/data/storage.ts` por um backend (ex: Supabase) sem precisar mexer na UI nem no store. Manter essa camada isolada é um requisito explícito do projeto.
-- Há export/import de backup em JSON nos Ajustes para não perder dados antes da nuvem existir.
+Dois adapters isolados, com responsabilidades separadas:
+
+- **`src/data/storage.ts`** — metadados (rotina, logs, datas dos vídeos). Síncrono, localStorage, chave `kaizen:data:v2`. A chave `kaizen:data:v1` (schema antigo, com XP/medalhas) é lida uma vez para converter e depois **fica congelada**: nunca é sobrescrita nem apagada automaticamente.
+- **`src/data/media.ts`** — blobs de vídeo. Assíncrono, IndexedDB (`kaizen-media`). **O store nunca importa este módulo**; quem orquestra os dois é a página Físico. Vídeo nunca entra no `AppData`, só o `mediaId`.
+
+Toda a UI consome esses adapters, nunca `localStorage`/`indexedDB` direto. **Futuro:** quando houver sync entre dispositivos Apple, troca-se a implementação dos adapters por um backend (ex: Supabase) sem mexer na UI nem no store. Manter essa camada isolada é requisito explícito do projeto.
+
+`src/data/migrate.ts` normaliza qualquer dado salvo para o schema atual, seção por seção (`normalizeCategory`, `normalizeHabit`, `normalizeSlot`, `normalizePhysique`). **Campo novo no schema exige um normalizador correspondente** — o que não for normalizado é descartado silenciosamente na carga e no import. Nunca gere rotina dentro do migrate: seed é responsabilidade exclusiva de `createDefaultData()`.
+
+Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos vídeos, **não** os vídeos.
 
 ## Estrutura
 
-- `src/store/useStore.ts` - Zustand store + persist; lógica de XP, níveis, streaks e conclusão diária.
-- `src/data/storage.ts` - adapter de persistência (ponto único pra trocar por nuvem).
-- `src/data/defaults.ts` - categorias e hábitos iniciais.
-- `src/lib/` - utilitários (datas, gamificação).
-- `src/components/` - componentes reutilizáveis (ProgressRing, HabitCard, TabBar, etc).
-- `src/pages/` - telas (Today, **Routine**, Progress, Achievements, Settings).
+- `src/store/useStore.ts` — Zustand store + todas as mutações de dados.
+- `src/store/useNav.ts` — aba atual.
+- `src/data/` — adapters de persistência, migração e dados iniciais.
+- `src/lib/` — utilitários puros (datas, horários, grade da semana, variações, físico).
+- `src/icons/` — ícones SVG + `names.ts` (lista, ícones de categoria, mapa emoji→ícone).
+- `src/components/` — componentes reutilizáveis.
+- `src/pages/` — as 4 telas: **Today**, **Week**, **Physique**, **Settings**.
 
-## Rotina (core)
+## Telas
 
-- A aba **Rotina** é a tela inicial do app: abre direto na grade da semana inteira (seg–dom, colunas fixas).
-- Cada bloco (`RoutineSlot`) liga um hábito a um dia + horário + duração.
-- Interação da grade (`src/components/WeekGrid.tsx`, gestos com Pointer Events):
-  - tocar numa atividade da paleta (`ActivityPalette`) e depois num horário → cria o bloco ali;
-  - sem atividade selecionada, tocar num horário vazio abre o `SlotSheet` já com dia/hora preenchidos;
-  - arrastar o bloco muda dia e horário (snap de 15 min); puxar a base muda a duração;
-  - tocar no bloco abre o `SlotSheet` (editar/excluir).
-- A escala vertical é adaptativa (`src/lib/weekGrid.ts`): a janela de horas cresce só o necessário e o
-  `pxPerMin` tenta caber a semana inteira na tela. Mudanças aqui afetam legibilidade e área de toque.
-- A tela **Hoje** lista os blocos do dia ordenados por horário; conclusão é por slot (`slotLogs`).
-- **Ajustes** guarda a biblioteca de atividades/categorias; horários ficam só na Rotina.
+- **Hoje** (inicial) — checklist do dia. Header compacto (data, sequência, anel de progresso pequeno), card de cobrança do vídeo quando vence, e a lista ocupando o resto. Marcar = `toggleSlot` (`slotLogs`).
+- **Semana** — a grade seg–dom inteira numa tela só, editável: toque numa atividade da paleta e depois num horário para criar; arraste o bloco para mudar dia/horário (snap de 15 min); puxe a base para mudar a duração; toque para editar. Gestos com Pointer Events puros em `WeekGrid.tsx`; a matemática de janela/escala adaptativa está em `src/lib/weekGrid.ts` — mexer ali afeta legibilidade e área de toque.
+- **Físico** — vídeos com data em IndexedDB, contagem regressiva do próximo (padrão 14 dias), histórico, salvar/excluir.
+- **Ajustes** — biblioteca de atividades, variações e categorias; intervalo do vídeo; backup.
+
+## Variações
+
+`Habit.variants` (`HabitVariant { id, name, items }`) serve tanto Academia (Treino A/B/C, `items` = exercícios) quanto Jiu-Jitsu (No-gi/Gi/Livre, `items` vazio).
+
+- `RoutineSlot.variantId` é o padrão daquele bloco na semana.
+- `AppData.slotVariants[slotId][dayKey]` é o override de um dia só ("hoje fiz o B").
+- Resolver **sempre** por `resolveVariantId()` / `variantOf()` (`src/lib/variants.ts`), que toleram id órfão.
+- Ao trocar o hábito de um bloco, o `variantId` é zerado (senão um bloco de Jiu exibe "Treino B").
+
+## Ícones
+
+Sem emoji em lugar nenhum do app. Todos os ícones são arquivos `.svg` em `src/icons/`, inlinados pelo componente `<Icon name size />`:
+
+- `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `stroke-width="1.75"`, caps/joins `round`, sem `width`/`height` no arquivo.
+- `currentColor` é obrigatório — é o que faz a cor herdar da classe (TabBar, `contrastInk()` sobre fundo claro).
+- Ícone novo: criar o `.svg` **e** adicionar o nome em `src/icons/names.ts`.
+- `Category.icon` guarda o nome do ícone; dados antigos com emoji são convertidos no migrate por `EMOJI_TO_ICON`.
+- `public/icons/` é só do PWA (favicon, apple-touch, 192/512) — não misturar.
+
+## Notificação do vídeo
+
+Sem servidor não existe push. O que existe: card na tela Hoje quando vence e badge no ícone (`navigator.setAppBadge`, iOS 16.4+, só com o app instalado e permissão concedida), atualizado **quando o app roda**. Push de verdade exigiria VAPID + backend — casa com a nota de nuvem acima.
 
 ## Convenções
 
 - Idioma da interface: português (pt-BR).
 - Sem comentários óbvios no código.
-- Datas de log no formato `YYYY-MM-DD` (chave do dia local).
+- Datas de log no formato `YYYY-MM-DD` (chave do dia local, via `dayKey()`); comparação de datas sempre por `parseDayKey()`.

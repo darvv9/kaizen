@@ -15,6 +15,7 @@ import {
   type GridRange,
 } from "../lib/weekGrid";
 import { WEEKDAY_SHORT_MON_FIRST, isToday, weekDates } from "../lib/date";
+import { shortVariantName, variantOf } from "../lib/variants";
 import type { RoutineSlot, Weekday } from "../types";
 
 const GUTTER = 28;
@@ -195,11 +196,13 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
                   column: 0,
                   totalColumns: 1,
                 };
+                const variant = variantOf(habit, slot.variantId);
                 return (
                   <WeekBlock
                     key={slot.id}
                     slot={slot}
                     name={habit.name}
+                    variantName={variant?.name}
                     color={category?.color ?? "#ffffff"}
                     dayIndex={dayIndex}
                     layout={layout}
@@ -233,6 +236,7 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
 interface BlockProps {
   slot: RoutineSlot;
   name: string;
+  variantName?: string;
   color: string;
   dayIndex: number;
   layout: SlotLayout;
@@ -255,6 +259,7 @@ type Gesture = {
 function WeekBlock({
   slot,
   name,
+  variantName,
   color,
   dayIndex,
   layout,
@@ -380,12 +385,23 @@ function WeekBlock({
           </div>
           <div className="line-clamp-2 text-[9px] font-semibold leading-tight text-white">
             {name}
+            {variantName && height < 44 && (
+              <span className="text-white/55"> · {shortVariantName(variantName)}</span>
+            )}
           </div>
+          {variantName && height >= 44 && (
+            <div className="truncate text-[8px] font-medium leading-tight" style={{ color }}>
+              {variantName}
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex h-full items-center pl-1.5 pr-1">
           <div className="truncate text-[8px] font-semibold leading-none text-white/90">
             {name}
+            {variantName && (
+              <span className="text-white/55"> · {shortVariantName(variantName)}</span>
+            )}
           </div>
         </div>
       )}

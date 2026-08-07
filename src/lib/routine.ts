@@ -1,11 +1,13 @@
-import type { AppData, Category, Habit, RoutineSlot, Weekday } from "../types";
+import type { AppData, Category, Habit, HabitVariant, RoutineSlot, Weekday } from "../types";
 import { parseTime } from "./time";
-import { weekdayOf } from "./date";
+import { dayKey, weekdayOf } from "./date";
+import { resolveVariantId, variantOf } from "./variants";
 
 export interface ScheduledItem {
   slot: RoutineSlot;
   habit: Habit;
   category?: Category;
+  variant?: HabitVariant;
 }
 
 export function slotsForWeekday(data: AppData, weekday: Weekday): RoutineSlot[] {
@@ -14,19 +16,21 @@ export function slotsForWeekday(data: AppData, weekday: Weekday): RoutineSlot[] 
     .sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime));
 }
 
+/** Blocos do dia, em ordem de horário, com a variação já resolvida. */
 export function scheduleForDay(data: AppData, date: Date = new Date()): ScheduledItem[] {
-  const wd = weekdayOf(date);
+  const key = dayKey(date);
   const habitMap = new Map(data.habits.map((h) => [h.id, h]));
   const catMap = new Map(data.categories.map((c) => [c.id, c]));
   const items: ScheduledItem[] = [];
 
-  for (const slot of slotsForWeekday(data, wd)) {
+  for (const slot of slotsForWeekday(data, weekdayOf(date))) {
     const habit = habitMap.get(slot.habitId);
     if (!habit || habit.archived) continue;
     items.push({
       slot,
       habit,
       category: catMap.get(habit.categoryId),
+      variant: variantOf(habit, resolveVariantId(data, slot, key)),
     });
   }
   return items;
@@ -34,21 +38,4 @@ export function scheduleForDay(data: AppData, date: Date = new Date()): Schedule
 
 export function isSlotDone(data: AppData, slotId: string, key: string): boolean {
   return data.slotLogs[slotId]?.[key] === true;
-}
-
-export function uniqueHabitsFromSlots(data: AppData, weekday: Weekday): Habit[] {
-  const seen = new Set<string>();
-  const out: Habit[] = [];
-  for (const slot of slotsForWeekday(data, weekday)) {
-    const h = data.habits.find((x) => x.id === slot.habitId);
-    if (h && !seen.has(h.id)) {
-      seen.add(h.id);
-      out.push(h);
-    }
-  }
-  return out;
-}
-
-export function hasRoutine(data: AppData): boolean {
-  return data.routineSlots.length > 0;
 }

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "../store/useStore";
 import { contrastInk } from "../lib/color";
+import { Icon } from "./Icon";
 
 interface Props {
   activeId: string | null;
@@ -50,16 +51,17 @@ export function ActivityPalette({ activeId, onSelect, onCreate }: Props) {
                   }
             }
           >
-            <span className="text-[13px] leading-none">{category?.icon}</span>
+            {category && <Icon name={category.icon} size={13} />}
             {habit.name}
           </button>
         );
       })}
       <button
         onClick={onCreate}
-        className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-xs font-medium text-white/55"
+        className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-xs font-medium text-white/55"
       >
-        ＋ Nova
+        <Icon name="plus" size={13} />
+        Nova
       </button>
     </div>
   );
