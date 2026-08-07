@@ -202,7 +202,12 @@ export function Settings() {
         </button>
       </section>
 
-      <p className="pb-4 text-center text-xs text-white/25">Kaizen · 改善</p>
+      <p className="pb-4 text-center text-xs text-white/25">
+        Kaizen · 改善
+        <span className="mt-1 block text-[10px] tabular-nums text-white/20">
+          versão {__BUILD_ID__}
+        </span>
+      </p>
 
       <HabitSheet
         open={habitSheet}

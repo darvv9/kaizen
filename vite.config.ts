@@ -4,10 +4,18 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   base: "/kaizen/",
+  // Carimbo do build, mostrado nos Ajustes: serve pra saber se a versão atualizou.
+  define: {
+    __BUILD_ID__: JSON.stringify(
+      new Date().toISOString().slice(0, 16).replace("T", " ")
+    ),
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // O registro é feito em src/main.tsx (recarrega ao ativar e checa no foco).
+      injectRegister: null,
       includeAssets: ["icons/apple-touch-icon.png", "icons/favicon.svg"],
       manifest: {
         name: "Kaizen",
