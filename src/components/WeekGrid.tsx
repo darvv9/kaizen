@@ -136,12 +136,10 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
       >
         <div className="flex" style={{ height: contentHeight }}>
           <div className="relative shrink-0" style={{ width: GUTTER }}>
-            {marks.slice(0, -1).map((minutes, i) => (
+            {marks.map((minutes) => (
               <span
                 key={minutes}
-                className={`absolute right-1.5 text-[9px] tabular-nums text-white/25 ${
-                  i === 0 ? "" : "-translate-y-1/2"
-                }`}
+                className="absolute right-1.5 -translate-y-1/2 text-[9px] tabular-nums text-white/25"
                 style={{ top: (minutes - range.start) * pxPerMin }}
               >
                 {minutes / 60}h
@@ -170,15 +168,13 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
               />
             ))}
 
-            {marks.map((minutes, i) =>
-              i === 0 ? null : (
-                <div
-                  key={minutes}
-                  className="pointer-events-none absolute inset-x-0 border-t border-white/[0.05]"
-                  style={{ top: (minutes - range.start) * pxPerMin }}
-                />
-              )
-            )}
+            {marks.map((minutes) => (
+              <div
+                key={minutes}
+                className="pointer-events-none absolute inset-x-0 border-t border-white/[0.05]"
+                style={{ top: (minutes - range.start) * pxPerMin }}
+              />
+            ))}
 
             {data.routineSlots.length === 0 && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-[11px] leading-relaxed text-white/35">

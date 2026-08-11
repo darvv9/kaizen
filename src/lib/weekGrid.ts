@@ -13,6 +13,8 @@ const MIN_PX_PER_MIN = 0.42;
 const MAX_PX_PER_MIN = 1.1;
 const DEFAULT_START = 7 * 60;
 const DEFAULT_END = 22 * 60;
+/** Folga nas pontas: o primeiro e o último bloco não encostam na borda. */
+const EDGE_PADDING = 20;
 
 export interface GridRange {
   start: number;
@@ -29,8 +31,8 @@ export function gridRange(slots: RoutineSlot[]): GridRange {
     start = Math.min(start, from);
     end = Math.max(end, from + slot.durationMinutes);
   }
-  const first = Math.max(0, Math.floor(start / 60) * 60);
-  const last = Math.min(24 * 60, Math.ceil(end / 60) * 60);
+  const first = Math.max(0, start - EDGE_PADDING);
+  const last = Math.min(24 * 60, end + EDGE_PADDING);
   return { start: first, end: last, minutes: last - first };
 }
 
@@ -67,8 +69,11 @@ export function clampDuration(
   return Math.max(MIN_DURATION, Math.min(range.end - startMinutes, minutes));
 }
 
+/** Só as horas cheias que caem dentro da janela — a folga das pontas fica limpa. */
 export function hourMarks(range: GridRange): number[] {
   const out: number[] = [];
-  for (let m = range.start; m <= range.end; m += 60) out.push(m);
+  for (let m = Math.ceil(range.start / 60) * 60; m < range.end; m += 60) {
+    if (m > range.start) out.push(m);
+  }
   return out;
 }

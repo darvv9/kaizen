@@ -80,8 +80,15 @@ video {
   -webkit-user-drag: none;
 }
 
-/* Hide scrollbars but keep scroll */
+/* Nenhuma barra de rolagem visível em lugar nenhum — nem a do iOS que pisca
+   dentro dos sheets. Rolagem continua funcionando. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 ::-webkit-scrollbar {
+  display: none;
   width: 0;
   height: 0;
 }
@@ -133,7 +140,7 @@ video {
 
   /* Reserva do espaço da barra de abas: ninguém mais chuta um pb-32. */
   .pb-chrome {
-    padding-bottom: calc(var(--chrome-bottom) + 0.75rem);
+    padding-bottom: calc(var(--chrome-bottom) + 1.5rem);
   }
 
   .pt-chrome {

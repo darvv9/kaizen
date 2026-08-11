@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet } from "./Sheet";
 import { Icon } from "./Icon";
 import { useStore } from "../store/useStore";
@@ -33,6 +33,7 @@ export function SlotSheet({
   const addHabit = useStore((s) => s.addHabit);
 
   const [creatingHabit, setCreatingHabit] = useState(false);
+  const [swapping, setSwapping] = useState(false);
   const [habitId, setHabitId] = useState("");
   const [variantId, setVariantId] = useState("");
   const [days, setDays] = useState<Weekday[]>([weekday]);
@@ -44,6 +45,7 @@ export function SlotSheet({
   useEffect(() => {
     if (!open) return;
     setCreatingHabit(startAsNewHabit);
+    setSwapping(false);
     setHabitId(editing?.habitId ?? data.habits[0]?.id ?? "");
     setVariantId(editing?.variantId ?? "");
     setDays([editing?.weekday ?? weekday]);
@@ -55,11 +57,29 @@ export function SlotSheet({
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
   const habit = data.habits.find((h) => h.id === habitId);
+  const category = data.categories.find((c) => c.id === habit?.categoryId);
   const variants = creatingHabit ? [] : habit?.variants ?? [];
+
+  /** Mesma ordem e mesmo visual da paleta da Semana. */
+  const options = useMemo(() => {
+    const order = new Map(data.categories.map((c) => [c.id, c.order]));
+    return data.habits
+      .filter((h) => !h.archived)
+      .map((h) => ({ habit: h, category: data.categories.find((c) => c.id === h.categoryId) }))
+      .sort(
+        (a, b) =>
+          (order.get(a.habit.categoryId) ?? 99) - (order.get(b.habit.categoryId) ?? 99)
+      );
+  }, [data.habits, data.categories]);
+
+  /* Editando um bloco a atividade já está escolhida: mostrar a lista inteira só
+     faria o sheet virar uma página rolável. */
+  const showPicker = !creatingHabit && (!editing || swapping);
 
   function pickHabit(id: string) {
     setHabitId(id);
     setVariantId("");
+    setSwapping(false);
   }
 
   function toggleDay(day: Weekday) {
@@ -134,56 +154,16 @@ export function SlotSheet({
   return (
     <Sheet open={open} title={editing ? "Editar bloco" : "Novo bloco"} onClose={onClose}>
       <div className="space-y-5">
-        <div className="flex gap-2">
-          <TabBtn active={!creatingHabit} onClick={() => setCreatingHabit(false)}>
-            Existente
-          </TabBtn>
-          <TabBtn active={creatingHabit} onClick={() => setCreatingHabit(true)}>
-            Nova atividade
-          </TabBtn>
-        </div>
-
-        {!creatingHabit ? (
-          <Field label="Atividade">
-            <div className="space-y-3">
-              {cats.map((cat) => {
-                const list = data.habits.filter(
-                  (h) => h.categoryId === cat.id && !h.archived
-                );
-                if (list.length === 0) return null;
-                return (
-                  <div key={cat.id}>
-                    <div className="mb-1.5 flex items-center gap-1.5 text-xs text-white/40">
-                      <Icon name={cat.icon} size={13} />
-                      {cat.name}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {list.map((h) => (
-                        <button
-                          key={h.id}
-                          onClick={() => pickHabit(h.id)}
-                          className="rounded-full px-3 py-1.5 text-sm transition"
-                          style={{
-                            backgroundColor:
-                              habitId === h.id ? cat.color : "rgba(255,255,255,0.06)",
-                            color:
-                              habitId === h.id
-                                ? contrastInk(cat.color)
-                                : "rgba(255,255,255,0.5)",
-                          }}
-                        >
-                          {h.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Field>
-        ) : (
+        {creatingHabit ? (
           <>
-            <Field label="Nome">
+            <Field
+              label="Nova atividade"
+              action={
+                options.length > 0
+                  ? { label: "Usar existente", onPress: () => setCreatingHabit(false) }
+                  : undefined
+              }
+            >
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -197,10 +177,9 @@ export function SlotSheet({
                   <button
                     key={c.id}
                     onClick={() => setNewCat(c.id)}
-                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
+                    className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
                     style={{
-                      backgroundColor:
-                        newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
+                      backgroundColor: newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
                       color:
                         newCat === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
                     }}
@@ -212,6 +191,59 @@ export function SlotSheet({
               </div>
             </Field>
           </>
+        ) : showPicker ? (
+          <Field
+            label="Atividade"
+            action={
+              editing ? { label: "Cancelar", onPress: () => setSwapping(false) } : undefined
+            }
+          >
+            <div className="flex flex-wrap gap-2">
+              {options.map(({ habit: h, category: cat }) => {
+                const color = cat?.color ?? "#ffffff";
+                const on = habitId === h.id;
+                return (
+                  <button
+                    key={h.id}
+                    onClick={() => pickHabit(h.id)}
+                    className="press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm"
+                    style={
+                      on
+                        ? { backgroundColor: color, borderColor: color, color: contrastInk(color) }
+                        : {
+                            backgroundColor: `${color}14`,
+                            borderColor: `${color}40`,
+                            color: "rgba(255,255,255,0.78)",
+                          }
+                    }
+                  >
+                    {cat && <Icon name={cat.icon} size={13} />}
+                    {h.name}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setCreatingHabit(true)}
+                className="press flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
+              >
+                <Icon name="plus" size={13} /> Nova
+              </button>
+            </div>
+          </Field>
+        ) : (
+          <Field
+            label="Atividade"
+            action={{ label: "Trocar", onPress: () => setSwapping(true) }}
+          >
+            <div className="row">
+              {category && (
+                <Icon name={category.icon} size={17} style={{ color: category.color }} />
+              )}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                {habit?.name ?? "—"}
+              </span>
+            </div>
+          </Field>
         )}
 
         {variants.length > 0 && (
@@ -219,7 +251,7 @@ export function SlotSheet({
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setVariantId("")}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
                   variantId === "" ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
                 }`}
               >
@@ -229,7 +261,7 @@ export function SlotSheet({
                 <button
                   key={v.id}
                   onClick={() => setVariantId(v.id)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
                     variantId === v.id ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
                   }`}
                 >
@@ -248,7 +280,7 @@ export function SlotSheet({
                 <button
                   key={day}
                   onClick={() => toggleDay(day)}
-                  className={`flex-1 rounded-md2 py-2 text-[11px] font-semibold transition ${
+                  className={`flex-1 rounded-md2 py-2 text-[11px] font-semibold ${
                     active ? "bg-white text-ink-950" : "bg-ink-800 text-white/45"
                   }`}
                 >
@@ -271,15 +303,12 @@ export function SlotSheet({
             onChange={(e) => setStartTime(e.target.value)}
             className="field [color-scheme:dark]"
           />
-        </Field>
-
-        <Field label="Duração">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 pt-1">
             {DURATION_OPTIONS.map((d) => (
               <button
                 key={d}
                 onClick={() => setDuration(d)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
                   duration === d ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
                 }`}
               >
@@ -302,27 +331,21 @@ export function SlotSheet({
           </button>
 
           {editing && (
-            <>
-              <div className="flex gap-2">
-                <button
-                  onClick={removeSlot}
-                  className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
-                >
-                  <Icon name="close" size={14} /> Tirar da semana
-                </button>
-                <button
-                  onClick={removeHabit}
-                  disabled={!habit}
-                  className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
-                >
-                  <Icon name="trash" size={14} /> Excluir atividade
-                </button>
-              </div>
-              <p className="text-[11px] leading-relaxed text-white/35">
-                Tirar da semana apaga só este bloco. Excluir atividade some com ela do app
-                inteiro — biblioteca, todos os dias e histórico.
-              </p>
-            </>
+            <div className="flex gap-2">
+              <button
+                onClick={removeSlot}
+                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
+              >
+                <Icon name="close" size={14} /> Tirar da semana
+              </button>
+              <button
+                onClick={removeHabit}
+                disabled={!habit}
+                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
+              >
+                <Icon name="trash" size={14} /> Excluir atividade
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -330,33 +353,31 @@ export function SlotSheet({
   );
 }
 
-function TabBtn({
-  active,
-  onClick,
+function Field({
+  label,
+  action,
   children,
 }: {
-  active: boolean;
-  onClick: () => void;
+  label: string;
+  /** Ação secundária no canto do rótulo (Trocar, Cancelar). */
+  action?: { label: string; onPress: () => void };
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex-1 rounded-md2 py-2 text-sm font-medium transition ${
-        active ? "bg-white/10 text-white" : "text-white/40"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
     <div className="space-y-2">
-      <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between gap-3">
+        <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
+          {label}
+        </label>
+        {action && (
+          <button
+            onClick={action.onPress}
+            className="press shrink-0 text-xs font-semibold text-white/60"
+          >
+            {action.label}
+          </button>
+        )}
+      </div>
       {children}
     </div>
   );
