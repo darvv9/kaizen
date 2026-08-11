@@ -63,6 +63,13 @@ export const DEFAULT_GYM_VARIANTS: { name: string; items: string[] }[] = [
   },
 ];
 
+/** Modalidades do jiu — mesma ideia do A/B/C, sem composição. */
+export const DEFAULT_JIU_VARIANTS: { name: string; items: string[] }[] = [
+  { name: "No-gi", items: [] },
+  { name: "Gi", items: [] },
+  { name: "Livre (gi)", items: [] },
+];
+
 const defaultHabits: Habit[] = [
   habit("h-academia", "cat-academia", "Academia", [
     variant("v-treino-a", DEFAULT_GYM_VARIANTS[0].name, DEFAULT_GYM_VARIANTS[0].items),
@@ -70,9 +77,9 @@ const defaultHabits: Habit[] = [
     variant("v-treino-c", DEFAULT_GYM_VARIANTS[2].name, DEFAULT_GYM_VARIANTS[2].items),
   ]),
   habit("h-jiu", "cat-jiu", "Jiu-Jitsu", [
-    variant("v-nogi", "No-gi"),
-    variant("v-gi", "Gi"),
-    variant("v-livre", "Livre (gi)"),
+    variant("v-nogi", DEFAULT_JIU_VARIANTS[0].name),
+    variant("v-gi", DEFAULT_JIU_VARIANTS[1].name),
+    variant("v-livre", DEFAULT_JIU_VARIANTS[2].name),
   ]),
   habit("h-skincare", "cat-cuidados", "Skincare"),
   habit("h-sono", "cat-cuidados", "Dormir cedo"),

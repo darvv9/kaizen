@@ -54,6 +54,8 @@ export function useLongPress({ onLongPress, onClick }: Options) {
       },
       onPointerUp: stop,
       onPointerCancel: stop,
+      /* Dedo saiu do chip: não é mais um toque longo naquele item. */
+      onPointerLeave: stop,
       onClick: (e: React.MouseEvent) => {
         if (fired.current) {
           fired.current = false;

@@ -67,6 +67,8 @@ Duas ações diferentes, com nomes diferentes na tela — não misturar:
 
 **As duas nunca podem virar botões gêmeos.** No sheet do bloco, "Tirar da semana" fica no rodapé com as ações do bloco; "Excluir atividade" é uma lixeira **junto da atividade**, com a explicação da diferença embaixo. Lado a lado, do mesmo tamanho, dá pra apagar a Academia inteira achando que estava tirando o treino de segunda — foi o que aconteceu.
 
+**Segurar exclui, em todo chip.** Atividade (paleta da Semana e lista do sheet) e variação (sheet do bloco e Ajustes) usam `<LongPressChip>` — toque escolhe, segurar abre a confirmação. O gesto mora num componente só de propósito: espalhado por tela, alguma lista ficaria de fora e o app viraria loteria de "aqui dá, ali não dá". Onde o gesto existe, a dica em texto embaixo da lista precisa dizer isso.
+
 **Toda exclusão de rotina passa por `destructive()`** (`src/store/undo.ts`): ele guarda o `AppData` anterior e oferece "Desfazer" no toast por 6s. Funciona porque cada mutação do store cria um objeto novo, então a referência de antes serve de snapshot. Não vale pra vídeo — blob apagado do IndexedDB não volta.
 
 ## Variações
@@ -89,6 +91,10 @@ Sem emoji em lugar nenhum do app. Todos os ícones são arquivos `.svg` em `src/
 - Ícone novo: criar o `.svg` **e** adicionar o nome em `src/icons/names.ts`.
 - `Category.icon` guarda o nome do ícone; dados antigos com emoji são convertidos no migrate por `EMOJI_TO_ICON`.
 - `public/icons/` é só do PWA (favicon, apple-touch, 192/512) — não misturar.
+
+## Atualização no iPhone
+
+`registerType: "autoUpdate"` + o registro em `src/main.tsx` (checa no foco e recarrega quando o SW novo assume) resolve o caso normal. Quando não resolve — e no iOS acontece —, os Ajustes têm **"Atualizar o app"** (`src/lib/update.ts`): desregistra o service worker, limpa o CacheStorage e recarrega. Não toca em localStorage nem IndexedDB, então rotina e vídeos ficam. A versão do build aparece logo acima, e é por ela que se confere se o aparelho pegou o deploy.
 
 ## Notificação do vídeo
 

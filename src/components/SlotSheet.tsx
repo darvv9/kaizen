@@ -15,7 +15,15 @@ import {
 import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
 import type { HabitVariant, RoutineSlot, Weekday } from "../types";
 import { contrastInk } from "../lib/color";
-import { DEFAULT_GYM_VARIANTS } from "../data/defaults";
+import { DEFAULT_GYM_VARIANTS, DEFAULT_JIU_VARIANTS } from "../data/defaults";
+import { LongPressChip } from "./LongPressChip";
+
+/** Kits de variação oferecidos na criação — os dois casos reais do app. */
+const VARIANT_PRESETS = [
+  { id: "none", label: "Sem variação", variants: [] as { name: string; items: string[] }[] },
+  { id: "gym", label: "Treino A · B · C", variants: DEFAULT_GYM_VARIANTS },
+  { id: "jiu", label: "No-gi · Gi · Livre", variants: DEFAULT_JIU_VARIANTS },
+];
 
 interface Props {
   open: boolean;
@@ -41,6 +49,7 @@ export function SlotSheet({
   const deleteHabit = useStore((s) => s.deleteHabit);
   const addHabit = useStore((s) => s.addHabit);
   const addVariant = useStore((s) => s.addVariant);
+  const deleteVariant = useStore((s) => s.deleteVariant);
 
   const [creatingHabit, setCreatingHabit] = useState(false);
   const [swapping, setSwapping] = useState(false);
@@ -51,6 +60,7 @@ export function SlotSheet({
   const [duration, setDuration] = useState(60);
   const [newName, setNewName] = useState("");
   const [newCat, setNewCat] = useState("");
+  const [preset, setPreset] = useState("none");
   const [variantSheet, setVariantSheet] = useState(false);
   const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(
     null,
@@ -67,6 +77,7 @@ export function SlotSheet({
     setDuration(editing?.durationMinutes ?? 60);
     setNewName("");
     setNewCat(data.categories[0]?.id ?? "");
+    setPreset("none");
     setVariantSheet(false);
     setEditingVariant(null);
   }, [open]);
@@ -124,10 +135,16 @@ export function SlotSheet({
 
   function save() {
     let hid = habitId;
+    let vid = variantId;
     if (creatingHabit) {
       const name = newName.trim();
       if (!name || !newCat) return;
       hid = addHabit({ categoryId: newCat, name });
+      const kit = VARIANT_PRESETS.find((p) => p.id === preset);
+      const created = (kit?.variants ?? []).map((v) =>
+        addVariant(hid, v.name, [...v.items]),
+      );
+      vid = created[0] ?? "";
     }
     if (!hid || days.length === 0) return;
 
@@ -135,7 +152,7 @@ export function SlotSheet({
       habitId: hid,
       startTime,
       durationMinutes: duration,
-      ...(variantId ? { variantId } : {}),
+      ...(vid ? { variantId: vid } : {}),
     };
 
     if (editing) {
@@ -144,6 +161,44 @@ export function SlotSheet({
       for (const day of days) addRoutineSlot({ ...payload, weekday: day });
     }
     onClose();
+  }
+
+  /** Segurar num chip da lista de atividades exclui aquela atividade. */
+  async function removeHabitById(id: string) {
+    const target = data.habits.find((h) => h.id === id);
+    if (!target) return;
+    const count = data.routineSlots.filter((s) => s.habitId === id).length;
+    const extra =
+      target.variants.length > 0
+        ? ` e as ${target.variants.length} variações`
+        : "";
+    const ok = await ask({
+      title: `Excluir “${target.name}” do app?`,
+      message:
+        count === 0
+          ? `Sai da biblioteca${extra}.`
+          : `Saem os ${count} ${count === 1 ? "bloco" : "blocos"} da semana${extra}, com o histórico.`,
+      confirmLabel: "Excluir do app inteiro",
+      destructive: true,
+    });
+    if (!ok) return;
+    if (habitId === id) setHabitId("");
+    destructive(`${target.name} excluída`, () => deleteHabit(id));
+  }
+
+  /** Segurar num chip de variação exclui a variação (com desfazer). */
+  async function removeVariant(v: HabitVariant) {
+    if (!habit) return;
+    const ok = await ask({
+      title: `Excluir a variação “${v.name}”?`,
+      message:
+        "Os blocos que usam ela continuam na semana, só ficam sem variação.",
+      confirmLabel: "Excluir variação",
+      destructive: true,
+    });
+    if (!ok) return;
+    if (variantId === v.id) setVariantId("");
+    destructive(`${v.name} excluída`, () => deleteVariant(habit.id, v.id));
   }
 
   /** Some com o bloco, mas a atividade continua na biblioteca. */
@@ -264,6 +319,31 @@ export function SlotSheet({
                   ))}
                 </div>
               </Field>
+
+              {/* A atividade só existe depois de salvar, então aqui a variação
+                  é uma escolha de kit — sem isso, criar "Academia" nunca dava
+                  chance de escolher Treino A/B/C na mesma tela. */}
+              <Field label="Variações">
+                <div className="flex flex-wrap gap-2">
+                  {VARIANT_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPreset(p.id)}
+                      className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
+                        preset === p.id
+                          ? "bg-white text-ink-950"
+                          : "bg-ink-800 text-white/50"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-relaxed text-white/35">
+                  Dá pra mudar depois: cada variação é editável, e segurar em cima
+                  exclui.
+                </p>
+              </Field>
             </>
           ) : showPicker ? (
             <Field
@@ -279,10 +359,11 @@ export function SlotSheet({
                   const color = cat?.color ?? "#ffffff";
                   const on = habitId === h.id;
                   return (
-                    <button
+                    <LongPressChip
                       key={h.id}
-                      onClick={() => pickHabit(h.id)}
-                      className="press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm"
+                      onSelect={() => pickHabit(h.id)}
+                      onLongPress={() => removeHabitById(h.id)}
+                      className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm"
                       style={
                         on
                           ? {
@@ -299,7 +380,7 @@ export function SlotSheet({
                     >
                       {cat && <Icon name={cat.icon} size={13} />}
                       {h.name}
-                    </button>
+                    </LongPressChip>
                   );
                 })}
                 <button
@@ -309,6 +390,9 @@ export function SlotSheet({
                   <Icon name="plus" size={13} /> Nova
                 </button>
               </div>
+              <p className="text-[11px] text-white/30">
+                Segure numa atividade pra excluir.
+              </p>
             </Field>
           ) : (
             <Field
@@ -360,17 +444,18 @@ export function SlotSheet({
                   </button>
                 )}
                 {variants.map((v) => (
-                  <button
+                  <LongPressChip
                     key={v.id}
-                    onClick={() => setVariantId(v.id)}
-                    className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
+                    onSelect={() => setVariantId(v.id)}
+                    onLongPress={() => removeVariant(v)}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium ${
                       variantId === v.id
                         ? "bg-white text-ink-950"
                         : "bg-ink-800 text-white/50"
                     }`}
                   >
                     {v.name}
-                  </button>
+                  </LongPressChip>
                 ))}
                 <button
                   onClick={() => {
@@ -382,18 +467,35 @@ export function SlotSheet({
                   <Icon name="plus" size={13} /> Nova
                 </button>
               </div>
-              {variants.length === 0 && (
-                <button
-                  onClick={() => {
-                    const ids = DEFAULT_GYM_VARIANTS.map((v) =>
-                      addVariant(habit.id, v.name, [...v.items]),
-                    );
-                    setVariantId(ids[0]);
-                  }}
-                  className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
-                >
-                  criar Treino A · B · C (com os exercícios)
-                </button>
+              {variants.length === 0 ? (
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      const ids = DEFAULT_GYM_VARIANTS.map((v) =>
+                        addVariant(habit.id, v.name, [...v.items]),
+                      );
+                      setVariantId(ids[0]);
+                    }}
+                    className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
+                  >
+                    criar Treino A · B · C
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ids = DEFAULT_JIU_VARIANTS.map((v) =>
+                        addVariant(habit.id, v.name, [...v.items]),
+                      );
+                      setVariantId(ids[0]);
+                    }}
+                    className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
+                  >
+                    criar No-gi · Gi · Livre
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-white/30">
+                  Toque pra escolher, segure pra excluir a variação.
+                </p>
               )}
             </Field>
           )}

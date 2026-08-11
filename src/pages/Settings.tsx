@@ -6,6 +6,7 @@ import { destructive } from "../store/undo";
 import { Sheet } from "../components/Sheet";
 import { Icon } from "../components/Icon";
 import { VariantSheet } from "../components/VariantSheet";
+import { LongPressChip } from "../components/LongPressChip";
 import { CATEGORY_COLORS, DEFAULT_GYM_VARIANTS } from "../data/defaults";
 import { CATEGORY_ICON_NAMES, type IconName } from "../icons/names";
 import { contrastInk } from "../lib/color";
@@ -13,6 +14,7 @@ import { storage } from "../data/storage";
 import { media } from "../data/media";
 import { formatBytes } from "../lib/physique";
 import { requestNotificationPermission, supportsBadge } from "../lib/badge";
+import { forceUpdate } from "../lib/update";
 import type { AppData, Category, Habit, HabitVariant } from "../types";
 
 /** O que some junto com uma atividade — o texto da confirmação sai daqui. */
@@ -282,12 +284,28 @@ export function Settings() {
         </button>
       </section>
 
-      <p className="pb-2 text-center text-xs text-white/25">
-        Kaizen · 改善
-        <span className="mt-1 block text-[10px] tabular-nums text-white/20">
-          versão {__BUILD_ID__}
-        </span>
-      </p>
+      <div className="space-y-2 pb-2 text-center">
+        <p className="text-xs text-white/25">
+          Kaizen · 改善
+          <span className="mt-1 block text-[10px] tabular-nums text-white/20">
+            versão {__BUILD_ID__}
+          </span>
+        </p>
+        <button
+          onClick={async () => {
+            const ok = await ask({
+              title: "Buscar a versão nova?",
+              message:
+                "O app recarrega e baixa a versão mais recente. Sua rotina e seus vídeos não são afetados.",
+              confirmLabel: "Atualizar agora",
+            });
+            if (ok) forceUpdate();
+          }}
+          className="press text-[11px] font-medium text-white/40 underline underline-offset-2"
+        >
+          Atualizar o app
+        </button>
+      </div>
 
       <HabitSheet
         open={habitSheet}
@@ -427,6 +445,7 @@ function HabitSheet({
   const updateHabit = useStore((s) => s.updateHabit);
   const deleteHabit = useStore((s) => s.deleteHabit);
   const addVariant = useStore((s) => s.addVariant);
+  const deleteVariant = useStore((s) => s.deleteVariant);
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
   const habit = data.habits.find((h) => h.id === editing?.id) ?? null;
@@ -451,6 +470,17 @@ function HabitSheet({
     if (editing) updateHabit(editing.id, { name: name.trim(), categoryId });
     else addHabit({ categoryId, name });
     onClose();
+  }
+
+  async function removeVariant(h: Habit, v: HabitVariant) {
+    const ok = await ask({
+      title: `Excluir a variação “${v.name}”?`,
+      message: "Os blocos que usam ela continuam na semana, só ficam sem variação.",
+      confirmLabel: "Excluir variação",
+      destructive: true,
+    });
+    if (!ok) return;
+    destructive(`${v.name} excluída`, () => deleteVariant(h.id, v.id));
   }
 
   async function remove() {
@@ -528,13 +558,14 @@ function HabitSheet({
             <Field label="Variações">
               <div className="flex flex-wrap gap-2">
                 {habit.variants.map((v) => (
-                  <button
+                  <LongPressChip
                     key={v.id}
-                    onClick={() => {
+                    onSelect={() => {
                       setEditingVariant(v);
                       setVariantSheet(true);
                     }}
-                    className="press rounded-full bg-ink-800 px-3 py-1.5 text-sm text-white/75"
+                    onLongPress={() => removeVariant(habit, v)}
+                    className="rounded-full bg-ink-800 px-3 py-1.5 text-sm text-white/75"
                   >
                     {v.name}
                     {v.items.length > 0 && (
@@ -542,7 +573,7 @@ function HabitSheet({
                         {v.items.length}
                       </span>
                     )}
-                  </button>
+                  </LongPressChip>
                 ))}
                 <button
                   onClick={() => {
@@ -567,8 +598,8 @@ function HabitSheet({
                 </button>
               )}
               <p className="text-[11px] leading-relaxed text-white/35">
-                Ex: Treino A/B/C na academia, No-gi/Gi no jiu. A composição de cada uma fica
-                guardada aqui.
+                Toque pra editar, segure pra excluir. Ex: Treino A/B/C na academia,
+                No-gi/Gi no jiu — a composição de cada uma fica guardada aqui.
               </p>
             </Field>
           ) : (
