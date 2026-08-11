@@ -7,7 +7,8 @@ import { Sheet } from "../components/Sheet";
 import { Icon } from "../components/Icon";
 import { VariantSheet } from "../components/VariantSheet";
 import { LongPressChip } from "../components/LongPressChip";
-import { CATEGORY_COLORS, DEFAULT_GYM_VARIANTS } from "../data/defaults";
+import { CATEGORY_COLORS } from "../data/defaults";
+import { kitFor } from "../lib/variantKits";
 import { CATEGORY_ICON_NAMES, type IconName } from "../icons/names";
 import { contrastInk } from "../lib/color";
 import { storage } from "../data/storage";
@@ -449,6 +450,7 @@ function HabitSheet({
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
   const habit = data.habits.find((h) => h.id === editing?.id) ?? null;
+  const habitKit = habit ? kitFor(habit.name) : null;
 
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -585,16 +587,16 @@ function HabitSheet({
                   <Icon name="plus" size={13} /> Nova
                 </button>
               </div>
-              {habit.variants.length === 0 && (
+              {habit.variants.length === 0 && habitKit && (
                 <button
                   onClick={() => {
-                    for (const v of DEFAULT_GYM_VARIANTS) {
+                    for (const v of habitKit.variants) {
                       addVariant(habit.id, v.name, [...v.items]);
                     }
                   }}
                   className="press mt-1 text-[11px] font-medium text-white/45 underline underline-offset-2"
                 >
-                  criar Treino A · B · C (com os exercícios)
+                  criar {habitKit.label} de uma vez
                 </button>
               )}
               <p className="text-[11px] leading-relaxed text-white/35">

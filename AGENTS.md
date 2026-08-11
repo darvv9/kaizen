@@ -75,7 +75,9 @@ Duas ações diferentes, com nomes diferentes na tela — não misturar:
 
 `Habit.variants` (`HabitVariant { id, name, items }`) serve tanto Academia (Treino A/B/C, `items` = exercícios) quanto Jiu-Jitsu (No-gi/Gi/Livre, `items` vazio).
 
-Variação se cria em dois lugares: nos Ajustes e **no próprio sheet do bloco** (chip "Nova" + atalho "criar Treino A · B · C"). Sem o segundo, uma atividade recém-criada não teria como ganhar A/B/C sem sair da tela Semana. O atalho usa `DEFAULT_GYM_VARIANTS` (`src/data/defaults.ts`), que é a mesma composição da rotina de fábrica — quem apagou a Academia sem querer recupera os exercícios num toque.
+Variação se cria em dois lugares: nos Ajustes e **no próprio sheet do bloco** (chip "Nova" + atalho de kit). Sem o segundo, uma atividade recém-criada não teria como ganhar A/B/C sem sair da tela Semana.
+
+**A sugestão de kit nasce sempre da atividade, nunca de um menu.** `kitFor(nome)` (`src/lib/variantKits.ts`) casa o nome com um kit — Academia/musculação → `DEFAULT_GYM_VARIANTS` (com os exercícios de fábrica); jiu/BJJ → `DEFAULT_JIU_VARIANTS`. Quem não casa (Skincare, Estudo) **não recebe sugestão nenhuma**, só o "+ Nova". Oferecer No-gi/Gi como opção de Academia não tem lógica, e é o tipo de coisa que faz o app parecer burro. Os kits são privados de `kitFor()`: nenhuma tela importa `DEFAULT_*_VARIANTS` direto.
 
 - `RoutineSlot.variantId` é o padrão daquele bloco na semana.
 - `AppData.slotVariants[slotId][dayKey]` é o override de um dia só ("hoje fiz o B").

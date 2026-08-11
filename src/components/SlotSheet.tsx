@@ -15,15 +15,8 @@ import {
 import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
 import type { HabitVariant, RoutineSlot, Weekday } from "../types";
 import { contrastInk } from "../lib/color";
-import { DEFAULT_GYM_VARIANTS, DEFAULT_JIU_VARIANTS } from "../data/defaults";
+import { kitFor } from "../lib/variantKits";
 import { LongPressChip } from "./LongPressChip";
-
-/** Kits de variação oferecidos na criação — os dois casos reais do app. */
-const VARIANT_PRESETS = [
-  { id: "none", label: "Sem variação", variants: [] as { name: string; items: string[] }[] },
-  { id: "gym", label: "Treino A · B · C", variants: DEFAULT_GYM_VARIANTS },
-  { id: "jiu", label: "No-gi · Gi · Livre", variants: DEFAULT_JIU_VARIANTS },
-];
 
 interface Props {
   open: boolean;
@@ -60,7 +53,7 @@ export function SlotSheet({
   const [duration, setDuration] = useState(60);
   const [newName, setNewName] = useState("");
   const [newCat, setNewCat] = useState("");
-  const [preset, setPreset] = useState("none");
+  const [useKit, setUseKit] = useState(false);
   const [variantSheet, setVariantSheet] = useState(false);
   const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(
     null,
@@ -77,7 +70,7 @@ export function SlotSheet({
     setDuration(editing?.durationMinutes ?? 60);
     setNewName("");
     setNewCat(data.categories[0]?.id ?? "");
-    setPreset("none");
+    setUseKit(false);
     setVariantSheet(false);
     setEditingVariant(null);
   }, [open]);
@@ -106,6 +99,10 @@ export function SlotSheet({
   /* Editando um bloco a atividade já está escolhida: mostrar a lista inteira só
      faria o sheet virar uma página rolável. */
   const showPicker = !creatingHabit && (!editing || swapping);
+
+  /* Kit sugerido pela própria atividade: na criação, pelo nome sendo digitado. */
+  const newKit = kitFor(newName);
+  const habitKit = habit ? kitFor(habit.name) : null;
 
   /* Botão desabilitado avisa que falta algo; botão que não faz nada ao ser
      tocado parece app quebrado. */
@@ -140,10 +137,11 @@ export function SlotSheet({
       const name = newName.trim();
       if (!name || !newCat) return;
       hid = addHabit({ categoryId: newCat, name });
-      const kit = VARIANT_PRESETS.find((p) => p.id === preset);
-      const created = (kit?.variants ?? []).map((v) =>
-        addVariant(hid, v.name, [...v.items]),
-      );
+      const kit = kitFor(name);
+      const created =
+        kit && useKit
+          ? kit.variants.map((v) => addVariant(hid, v.name, [...v.items]))
+          : [];
       vid = created[0] ?? "";
     }
     if (!hid || days.length === 0) return;
@@ -320,30 +318,34 @@ export function SlotSheet({
                 </div>
               </Field>
 
-              {/* A atividade só existe depois de salvar, então aqui a variação
-                  é uma escolha de kit — sem isso, criar "Academia" nunca dava
-                  chance de escolher Treino A/B/C na mesma tela. */}
-              <Field label="Variações">
-                <div className="flex flex-wrap gap-2">
-                  {VARIANT_PRESETS.map((p) => (
+              {/* A sugestão sai do nome que ele está digitando. "Skincare" não
+                  ganha proposta nenhuma; "Academia" não ganha No-gi. */}
+              {newKit && (
+                <Field label="Variações">
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      key={p.id}
-                      onClick={() => setPreset(p.id)}
+                      onClick={() => setUseKit(false)}
                       className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                        preset === p.id
-                          ? "bg-white text-ink-950"
-                          : "bg-ink-800 text-white/50"
+                        !useKit ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
                       }`}
                     >
-                      {p.label}
+                      Sem variação
                     </button>
-                  ))}
-                </div>
-                <p className="text-[11px] leading-relaxed text-white/35">
-                  Dá pra mudar depois: cada variação é editável, e segurar em cima
-                  exclui.
-                </p>
-              </Field>
+                    <button
+                      onClick={() => setUseKit(true)}
+                      className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
+                        useKit ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                      }`}
+                    >
+                      {newKit.label}
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-white/35">
+                    Sugestão pelo nome “{newName.trim()}”. Depois dá pra criar outra
+                    ou excluir, segurando em cima.
+                  </p>
+                </Field>
+              )}
             </>
           ) : showPicker ? (
             <Field
@@ -468,30 +470,19 @@ export function SlotSheet({
                 </button>
               </div>
               {variants.length === 0 ? (
-                <div className="flex flex-wrap gap-3">
+                habitKit && (
                   <button
                     onClick={() => {
-                      const ids = DEFAULT_GYM_VARIANTS.map((v) =>
+                      const ids = habitKit.variants.map((v) =>
                         addVariant(habit.id, v.name, [...v.items]),
                       );
                       setVariantId(ids[0]);
                     }}
                     className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
                   >
-                    criar Treino A · B · C
+                    criar {habitKit.label} de uma vez
                   </button>
-                  <button
-                    onClick={() => {
-                      const ids = DEFAULT_JIU_VARIANTS.map((v) =>
-                        addVariant(habit.id, v.name, [...v.items]),
-                      );
-                      setVariantId(ids[0]);
-                    }}
-                    className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
-                  >
-                    criar No-gi · Gi · Livre
-                  </button>
-                </div>
+                )
               ) : (
                 <p className="text-[11px] text-white/30">
                   Toque pra escolher, segure pra excluir a variação.
