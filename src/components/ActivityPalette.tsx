@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "../store/useStore";
-import { useFeedback } from "../store/useFeedback";
 import { ask } from "../store/useConfirm";
+import { destructive } from "../store/undo";
 import { useLongPress } from "../lib/useLongPress";
 import { contrastInk } from "../lib/color";
 import { Icon } from "./Icon";
@@ -16,7 +16,6 @@ interface Props {
 export function ActivityPalette({ activeId, onSelect, onCreate }: Props) {
   const data = useStore((s) => s.data);
   const deleteHabit = useStore((s) => s.deleteHabit);
-  const push = useFeedback((s) => s.push);
 
   const chips = useMemo(() => {
     const order = new Map(data.categories.map((c) => [c.id, c.order]));
@@ -35,21 +34,22 @@ export function ActivityPalette({ activeId, onSelect, onCreate }: Props) {
 
   async function confirmDelete(habit: Habit) {
     const count = data.routineSlots.filter((s) => s.habitId === habit.id).length;
+    const variants =
+      habit.variants.length > 0 ? ` e as ${habit.variants.length} variações` : "";
     const ok = await ask({
-      title: `Excluir “${habit.name}”?`,
+      title: `Excluir “${habit.name}” do app?`,
       message:
         count === 0
-          ? "Sai da biblioteca de vez. Não dá pra desfazer."
-          : `Sai da biblioteca e de ${count} ${
+          ? `Sai da biblioteca${variants}.`
+          : `Saem os ${count} ${
               count === 1 ? "bloco" : "blocos"
-            } da semana, com o histórico. Não dá pra desfazer.`,
-      confirmLabel: "Excluir atividade",
+            } da semana${variants}, com o histórico.`,
+      confirmLabel: "Excluir do app inteiro",
       destructive: true,
     });
     if (!ok) return;
     if (habit.id === activeId) onSelect(null);
-    deleteHabit(habit.id);
-    push(`${habit.name} excluída`, "success");
+    destructive(`${habit.name} excluída`, () => deleteHabit(habit.id));
   }
 
   return (

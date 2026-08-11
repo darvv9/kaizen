@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
 import { ask } from "../store/useConfirm";
+import { destructive } from "../store/undo";
 import { Sheet } from "../components/Sheet";
 import { Icon } from "../components/Icon";
 import { VariantSheet } from "../components/VariantSheet";
-import { CATEGORY_COLORS } from "../data/defaults";
+import { CATEGORY_COLORS, DEFAULT_GYM_VARIANTS } from "../data/defaults";
 import { CATEGORY_ICON_NAMES, type IconName } from "../icons/names";
 import { contrastInk } from "../lib/color";
 import { storage } from "../data/storage";
@@ -15,11 +16,15 @@ import { requestNotificationPermission, supportsBadge } from "../lib/badge";
 import type { AppData, Category, Habit, HabitVariant } from "../types";
 
 /** O que some junto com uma atividade — o texto da confirmação sai daqui. */
-function habitImpact(data: AppData, habitId: string) {
-  const slots = data.routineSlots.filter((s) => s.habitId === habitId).length;
+function habitImpact(data: AppData, habit: Habit) {
+  const slots = data.routineSlots.filter((s) => s.habitId === habit.id).length;
+  const variants =
+    habit.variants.length > 0 ? ` e as ${habit.variants.length} variações` : "";
   return slots === 0
-    ? "Ela não está em nenhum dia da semana."
-    : `Sai de ${slots} ${slots === 1 ? "bloco" : "blocos"} da semana, com o histórico.`;
+    ? `Sai da biblioteca${variants}. Ela não está em nenhum dia da semana.`
+    : `Saem os ${slots} ${
+        slots === 1 ? "bloco" : "blocos"
+      } da semana${variants}, com o histórico.`;
 }
 
 export function Settings() {
@@ -44,14 +49,13 @@ export function Settings() {
 
   async function removeHabit(habit: Habit) {
     const ok = await ask({
-      title: `Excluir “${habit.name}”?`,
-      message: `${habitImpact(data, habit.id)} Não dá pra desfazer.`,
-      confirmLabel: "Excluir atividade",
+      title: `Excluir “${habit.name}” do app?`,
+      message: habitImpact(data, habit),
+      confirmLabel: "Excluir do app inteiro",
       destructive: true,
     });
     if (!ok) return;
-    deleteHabit(habit.id);
-    push(`${habit.name} excluída`, "success");
+    destructive(`${habit.name} excluída`, () => deleteHabit(habit.id));
   }
 
   async function removeCategory(cat: Category) {
@@ -71,9 +75,8 @@ export function Settings() {
       destructive: true,
     });
     if (!ok) return;
-    deleteCategory(cat.id);
     setCatSheet(false);
-    push(`${cat.name} excluída`, "success");
+    destructive(`${cat.name} excluída`, () => deleteCategory(cat.id));
   }
 
   function handleExport() {
@@ -452,14 +455,15 @@ function HabitSheet({
 
   async function remove() {
     if (!editing) return;
+    const target = habit ?? editing;
     const ok = await ask({
-      title: `Excluir “${editing.name}”?`,
-      message: `${habitImpact(data, editing.id)} Não dá pra desfazer.`,
-      confirmLabel: "Excluir atividade",
+      title: `Excluir “${target.name}” do app?`,
+      message: habitImpact(data, target),
+      confirmLabel: "Excluir do app inteiro",
       destructive: true,
     });
     if (!ok) return;
-    deleteHabit(editing.id);
+    destructive(`${target.name} excluída`, () => deleteHabit(target.id));
     onClose();
   }
 
@@ -553,13 +557,13 @@ function HabitSheet({
               {habit.variants.length === 0 && (
                 <button
                   onClick={() => {
-                    addVariant(habit.id, "Treino A");
-                    addVariant(habit.id, "Treino B");
-                    addVariant(habit.id, "Treino C");
+                    for (const v of DEFAULT_GYM_VARIANTS) {
+                      addVariant(habit.id, v.name, [...v.items]);
+                    }
                   }}
-                  className="mt-1 text-[11px] font-medium text-white/45 underline underline-offset-2"
+                  className="press mt-1 text-[11px] font-medium text-white/45 underline underline-offset-2"
                 >
-                  criar Treino A · B · C
+                  criar Treino A · B · C (com os exercícios)
                 </button>
               )}
               <p className="text-[11px] leading-relaxed text-white/35">

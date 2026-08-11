@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sheet } from "./Sheet";
 import { Icon } from "./Icon";
+import { VariantSheet } from "./VariantSheet";
 import { useStore } from "../store/useStore";
 import { ask } from "../store/useConfirm";
-import { DURATION_OPTIONS, parseTime, prettyDuration, prettyMinutes, prettyTime } from "../lib/time";
+import { destructive } from "../store/undo";
+import {
+  DURATION_OPTIONS,
+  parseTime,
+  prettyDuration,
+  prettyMinutes,
+  prettyTime,
+} from "../lib/time";
 import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
-import type { RoutineSlot, Weekday } from "../types";
+import type { HabitVariant, RoutineSlot, Weekday } from "../types";
 import { contrastInk } from "../lib/color";
+import { DEFAULT_GYM_VARIANTS } from "../data/defaults";
 
 interface Props {
   open: boolean;
@@ -31,6 +40,7 @@ export function SlotSheet({
   const deleteRoutineSlot = useStore((s) => s.deleteRoutineSlot);
   const deleteHabit = useStore((s) => s.deleteHabit);
   const addHabit = useStore((s) => s.addHabit);
+  const addVariant = useStore((s) => s.addVariant);
 
   const [creatingHabit, setCreatingHabit] = useState(false);
   const [swapping, setSwapping] = useState(false);
@@ -41,6 +51,10 @@ export function SlotSheet({
   const [duration, setDuration] = useState(60);
   const [newName, setNewName] = useState("");
   const [newCat, setNewCat] = useState("");
+  const [variantSheet, setVariantSheet] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -53,28 +67,40 @@ export function SlotSheet({
     setDuration(editing?.durationMinutes ?? 60);
     setNewName("");
     setNewCat(data.categories[0]?.id ?? "");
+    setVariantSheet(false);
+    setEditingVariant(null);
   }, [open]);
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
   const habit = data.habits.find((h) => h.id === habitId);
   const category = data.categories.find((c) => c.id === habit?.categoryId);
-  const variants = creatingHabit ? [] : habit?.variants ?? [];
+  const variants = creatingHabit ? [] : (habit?.variants ?? []);
 
   /** Mesma ordem e mesmo visual da paleta da Semana. */
   const options = useMemo(() => {
     const order = new Map(data.categories.map((c) => [c.id, c.order]));
     return data.habits
       .filter((h) => !h.archived)
-      .map((h) => ({ habit: h, category: data.categories.find((c) => c.id === h.categoryId) }))
+      .map((h) => ({
+        habit: h,
+        category: data.categories.find((c) => c.id === h.categoryId),
+      }))
       .sort(
         (a, b) =>
-          (order.get(a.habit.categoryId) ?? 99) - (order.get(b.habit.categoryId) ?? 99)
+          (order.get(a.habit.categoryId) ?? 99) -
+          (order.get(b.habit.categoryId) ?? 99),
       );
   }, [data.habits, data.categories]);
 
   /* Editando um bloco a atividade já está escolhida: mostrar a lista inteira só
      faria o sheet virar uma página rolável. */
   const showPicker = !creatingHabit && (!editing || swapping);
+
+  /* Botão desabilitado avisa que falta algo; botão que não faz nada ao ser
+     tocado parece app quebrado. */
+  const canSave = creatingHabit
+    ? Boolean(newName.trim() && newCat)
+    : Boolean(habitId);
 
   function pickHabit(id: string) {
     setHabitId(id);
@@ -92,7 +118,7 @@ export function SlotSheet({
         ? prev.length > 1
           ? prev.filter((d) => d !== day)
           : prev
-        : [...prev, day]
+        : [...prev, day],
     );
   }
 
@@ -134,230 +160,308 @@ export function SlotSheet({
     onClose();
   }
 
-  /** Some com a atividade inteira: biblioteca, blocos e histórico. */
+  /** Some com a atividade inteira: biblioteca, blocos, variações e histórico. */
   async function removeHabit() {
     if (!habit) return;
-    const count = data.routineSlots.filter((s) => s.habitId === habit.id).length;
+    const count = data.routineSlots.filter(
+      (s) => s.habitId === habit.id,
+    ).length;
+    const extra =
+      habit.variants.length > 0
+        ? ` e as ${habit.variants.length} variações (${habit.variants
+            .map((v) => v.name)
+            .join(", ")})`
+        : "";
     const ok = await ask({
-      title: `Excluir “${habit.name}”?`,
-      message: `Sai da biblioteca e de ${count} ${
+      title: `Excluir a atividade “${habit.name}” do app?`,
+      message: `Não é só este bloco: saem os ${count} ${
         count === 1 ? "bloco" : "blocos"
-      } da semana, com o histórico. Não dá pra desfazer.`,
-      confirmLabel: "Excluir atividade",
+      } da semana${extra}. Pra tirar só deste horário, use “Tirar da semana”.`,
+      confirmLabel: "Excluir do app inteiro",
       destructive: true,
     });
     if (!ok) return;
-    deleteHabit(habit.id);
+    const name = habit.name;
+    destructive(`${name} excluída`, () => deleteHabit(habit.id));
     onClose();
   }
 
   return (
-    <Sheet
-      open={open}
-      title={editing ? "Editar bloco" : "Novo bloco"}
-      onClose={onClose}
-      footer={
-        <div className="space-y-2">
-          <button
-            onClick={save}
-            className="press w-full rounded-md2 bg-white py-3 text-sm font-semibold text-ink-950"
-          >
-            {editing
-              ? "Salvar"
-              : days.length > 1
-              ? `Adicionar em ${days.length} dias`
-              : "Adicionar"}
-          </button>
+    <>
+      <Sheet
+        open={open}
+        title={editing ? "Editar bloco" : "Novo bloco"}
+        onClose={onClose}
+        /* Só duas ações aqui, e nenhuma delas apaga a atividade do app: o
+         "Excluir atividade" mora lá em cima, junto da atividade que ele
+         apaga. Antes os dois eram botões gêmeos e dava pra trocar um pelo
+         outro sem perceber. */
+        footer={
+          <div className="space-y-2">
+            <button
+              onClick={save}
+              disabled={!canSave}
+              className="press w-full rounded-md2 bg-white py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
+            >
+              {editing
+                ? "Salvar"
+                : days.length > 1
+                  ? `Adicionar em ${days.length} dias`
+                  : "Adicionar"}
+            </button>
 
-          {editing && (
-            <div className="flex gap-2">
+            {editing && (
               <button
                 onClick={removeSlot}
-                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
+                className="press flex w-full items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
               >
                 <Icon name="close" size={14} /> Tirar da semana
               </button>
-              <button
-                onClick={removeHabit}
-                disabled={!habit}
-                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          {creatingHabit ? (
+            <>
+              <Field
+                label="Nova atividade"
+                action={
+                  options.length > 0
+                    ? {
+                        label: "Usar existente",
+                        onPress: () => setCreatingHabit(false),
+                      }
+                    : undefined
+                }
               >
-                <Icon name="trash" size={14} /> Excluir atividade
-              </button>
-            </div>
-          )}
-        </div>
-      }
-    >
-      <div className="space-y-5">
-        {creatingHabit ? (
-          <>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Ex: Academia"
+                  className="field"
+                />
+              </Field>
+              <Field label="Categoria">
+                <div className="flex flex-wrap gap-2">
+                  {cats.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setNewCat(c.id)}
+                      className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
+                      style={{
+                        backgroundColor:
+                          newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
+                        color:
+                          newCat === c.id
+                            ? contrastInk(c.color)
+                            : "rgba(255,255,255,0.5)",
+                      }}
+                    >
+                      <Icon name={c.icon} size={13} />
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            </>
+          ) : showPicker ? (
             <Field
-              label="Nova atividade"
+              label="Atividade"
               action={
-                options.length > 0
-                  ? { label: "Usar existente", onPress: () => setCreatingHabit(false) }
+                editing
+                  ? { label: "Cancelar", onPress: () => setSwapping(false) }
                   : undefined
               }
             >
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ex: Academia"
-                className="field"
-              />
-            </Field>
-            <Field label="Categoria">
               <div className="flex flex-wrap gap-2">
-                {cats.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setNewCat(c.id)}
-                    className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
-                    style={{
-                      backgroundColor: newCat === c.id ? c.color : "rgba(255,255,255,0.06)",
-                      color:
-                        newCat === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
-                    }}
-                  >
-                    <Icon name={c.icon} size={13} />
-                    {c.name}
-                  </button>
-                ))}
+                {options.map(({ habit: h, category: cat }) => {
+                  const color = cat?.color ?? "#ffffff";
+                  const on = habitId === h.id;
+                  return (
+                    <button
+                      key={h.id}
+                      onClick={() => pickHabit(h.id)}
+                      className="press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm"
+                      style={
+                        on
+                          ? {
+                              backgroundColor: color,
+                              borderColor: color,
+                              color: contrastInk(color),
+                            }
+                          : {
+                              backgroundColor: `${color}14`,
+                              borderColor: `${color}40`,
+                              color: "rgba(255,255,255,0.78)",
+                            }
+                      }
+                    >
+                      {cat && <Icon name={cat.icon} size={13} />}
+                      {h.name}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setCreatingHabit(true)}
+                  className="press flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
+                >
+                  <Icon name="plus" size={13} /> Nova
+                </button>
               </div>
             </Field>
-          </>
-        ) : showPicker ? (
-          <Field
-            label="Atividade"
-            action={
-              editing ? { label: "Cancelar", onPress: () => setSwapping(false) } : undefined
-            }
-          >
-            <div className="flex flex-wrap gap-2">
-              {options.map(({ habit: h, category: cat }) => {
-                const color = cat?.color ?? "#ffffff";
-                const on = habitId === h.id;
+          ) : (
+            <Field
+              label="Atividade"
+              action={{ label: "Trocar", onPress: () => setSwapping(true) }}
+            >
+              <div className="row">
+                {category && (
+                  <Icon
+                    name={category.icon}
+                    size={17}
+                    style={{ color: category.color }}
+                  />
+                )}
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                  {habit?.name ?? "—"}
+                </span>
+                <button
+                  onClick={removeHabit}
+                  disabled={!habit}
+                  aria-label={`Excluir ${habit?.name ?? ""} do app`}
+                  className="press -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/30 active:text-red-400 disabled:opacity-30"
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+              <p className="text-[11px] leading-relaxed text-white/30">
+                A lixeira apaga “{habit?.name ?? "a atividade"}” do app inteiro.
+                Pra tirar só deste horário, use “Tirar da semana” ali embaixo.
+              </p>
+            </Field>
+          )}
+
+          {/* Sempre visível com uma atividade escolhida: sem isso, uma atividade
+            recém-criada não tem como ganhar Treino A/B/C sem ir nos Ajustes. */}
+          {habit && !creatingHabit && (
+            <Field label="Variação">
+              <div className="flex flex-wrap gap-2">
+                {variants.length > 0 && (
+                  <button
+                    onClick={() => setVariantId("")}
+                    className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
+                      variantId === ""
+                        ? "bg-white text-ink-950"
+                        : "bg-ink-800 text-white/50"
+                    }`}
+                  >
+                    Nenhuma
+                  </button>
+                )}
+                {variants.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setVariantId(v.id)}
+                    className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
+                      variantId === v.id
+                        ? "bg-white text-ink-950"
+                        : "bg-ink-800 text-white/50"
+                    }`}
+                  >
+                    {v.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setEditingVariant(null);
+                    setVariantSheet(true);
+                  }}
+                  className="press flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
+                >
+                  <Icon name="plus" size={13} /> Nova
+                </button>
+              </div>
+              {variants.length === 0 && (
+                <button
+                  onClick={() => {
+                    const ids = DEFAULT_GYM_VARIANTS.map((v) =>
+                      addVariant(habit.id, v.name, [...v.items]),
+                    );
+                    setVariantId(ids[0]);
+                  }}
+                  className="press text-[11px] font-medium text-white/45 underline underline-offset-2"
+                >
+                  criar Treino A · B · C (com os exercícios)
+                </button>
+              )}
+            </Field>
+          )}
+
+          <Field label={editing ? "Dia" : "Dias"}>
+            <div className="flex gap-1.5">
+              {WEEKDAYS_MON_FIRST.map((day, i) => {
+                const active = days.includes(day);
                 return (
                   <button
-                    key={h.id}
-                    onClick={() => pickHabit(h.id)}
-                    className="press flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm"
-                    style={
-                      on
-                        ? { backgroundColor: color, borderColor: color, color: contrastInk(color) }
-                        : {
-                            backgroundColor: `${color}14`,
-                            borderColor: `${color}40`,
-                            color: "rgba(255,255,255,0.78)",
-                          }
-                    }
+                    key={day}
+                    onClick={() => toggleDay(day)}
+                    className={`flex-1 rounded-md2 py-2 text-[11px] font-semibold ${
+                      active
+                        ? "bg-white text-ink-950"
+                        : "bg-ink-800 text-white/45"
+                    }`}
                   >
-                    {cat && <Icon name={cat.icon} size={13} />}
-                    {h.name}
+                    {WEEKDAY_SHORT_MON_FIRST[i]}
                   </button>
                 );
               })}
-              <button
-                onClick={() => setCreatingHabit(true)}
-                className="press flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
-              >
-                <Icon name="plus" size={13} /> Nova
-              </button>
             </div>
           </Field>
-        ) : (
-          <Field
-            label="Atividade"
-            action={{ label: "Trocar", onPress: () => setSwapping(true) }}
-          >
-            <div className="row">
-              {category && (
-                <Icon name={category.icon} size={17} style={{ color: category.color }} />
-              )}
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">
-                {habit?.name ?? "—"}
-              </span>
-            </div>
-          </Field>
-        )}
 
-        {variants.length > 0 && (
-          <Field label="Variação">
+          <Field
+            label={`Horário · ${prettyTime(startTime)} → ${prettyMinutes(
+              parseTime(startTime) + duration,
+            )}`}
+          >
+            <input
+              type="time"
+              step={900}
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="field [color-scheme:dark]"
+            />
+          </Field>
+
+          <Field label="Duração">
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setVariantId("")}
-                className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                  variantId === "" ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
-                }`}
-              >
-                Nenhuma
-              </button>
-              {variants.map((v) => (
+              {DURATION_OPTIONS.map((d) => (
                 <button
-                  key={v.id}
-                  onClick={() => setVariantId(v.id)}
+                  key={d}
+                  onClick={() => setDuration(d)}
                   className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                    variantId === v.id ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                    duration === d
+                      ? "bg-white text-ink-950"
+                      : "bg-ink-800 text-white/50"
                   }`}
                 >
-                  {v.name}
+                  {prettyDuration(d)}
                 </button>
               ))}
             </div>
           </Field>
-        )}
+        </div>
+      </Sheet>
 
-        <Field label={editing ? "Dia" : "Dias"}>
-          <div className="flex gap-1.5">
-            {WEEKDAYS_MON_FIRST.map((day, i) => {
-              const active = days.includes(day);
-              return (
-                <button
-                  key={day}
-                  onClick={() => toggleDay(day)}
-                  className={`flex-1 rounded-md2 py-2 text-[11px] font-semibold ${
-                    active ? "bg-white text-ink-950" : "bg-ink-800 text-white/45"
-                  }`}
-                >
-                  {WEEKDAY_SHORT_MON_FIRST[i]}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-
-        <Field
-          label={`Horário · ${prettyTime(startTime)} → ${prettyMinutes(
-            parseTime(startTime) + duration
-          )}`}
-        >
-          <input
-            type="time"
-            step={900}
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            className="field [color-scheme:dark]"
-          />
-        </Field>
-
-        <Field label="Duração">
-          <div className="flex flex-wrap gap-2">
-            {DURATION_OPTIONS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDuration(d)}
-                className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                  duration === d ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
-                }`}
-              >
-                {prettyDuration(d)}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </div>
-    </Sheet>
+      {habit && (
+        <VariantSheet
+          open={variantSheet}
+          habitId={habit.id}
+          editing={editingVariant}
+          onClose={() => setVariantSheet(false)}
+        />
+      )}
+    </>
   );
 }
 

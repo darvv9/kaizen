@@ -62,12 +62,18 @@ Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos víd
 Duas ações diferentes, com nomes diferentes na tela — não misturar:
 
 - **Tirar da semana** (`deleteRoutineSlot`) — apaga um bloco; a atividade continua na biblioteca.
-- **Excluir atividade** (`deleteHabit`) — some do app inteiro: biblioteca, todos os blocos e o histórico. Disponível nos Ajustes (lixeira na linha e dentro do sheet), no sheet do bloco na Semana e **segurando o chip na paleta da Semana** (`useLongPress`, 450 ms, cancela se o dedo deslizar — a paleta rola na horizontal).
+- **Excluir atividade** (`deleteHabit`) — some do app inteiro: biblioteca, todos os blocos, as variações e o histórico. Disponível nos Ajustes (lixeira na linha e dentro do sheet), na lixeira ao lado da atividade no sheet do bloco e **segurando o chip na paleta da Semana** (`useLongPress`, 450 ms, cancela se o dedo deslizar — a paleta rola na horizontal).
 - **Excluir categoria** (`deleteCategory`) — leva junto as atividades e os blocos dela; a confirmação diz quantos.
+
+**As duas nunca podem virar botões gêmeos.** No sheet do bloco, "Tirar da semana" fica no rodapé com as ações do bloco; "Excluir atividade" é uma lixeira **junto da atividade**, com a explicação da diferença embaixo. Lado a lado, do mesmo tamanho, dá pra apagar a Academia inteira achando que estava tirando o treino de segunda — foi o que aconteceu.
+
+**Toda exclusão de rotina passa por `destructive()`** (`src/store/undo.ts`): ele guarda o `AppData` anterior e oferece "Desfazer" no toast por 6s. Funciona porque cada mutação do store cria um objeto novo, então a referência de antes serve de snapshot. Não vale pra vídeo — blob apagado do IndexedDB não volta.
 
 ## Variações
 
 `Habit.variants` (`HabitVariant { id, name, items }`) serve tanto Academia (Treino A/B/C, `items` = exercícios) quanto Jiu-Jitsu (No-gi/Gi/Livre, `items` vazio).
+
+Variação se cria em dois lugares: nos Ajustes e **no próprio sheet do bloco** (chip "Nova" + atalho "criar Treino A · B · C"). Sem o segundo, uma atividade recém-criada não teria como ganhar A/B/C sem sair da tela Semana. O atalho usa `DEFAULT_GYM_VARIANTS` (`src/data/defaults.ts`), que é a mesma composição da rotina de fábrica — quem apagou a Academia sem querer recupera os exercícios num toque.
 
 - `RoutineSlot.variantId` é o padrão daquele bloco na semana.
 - `AppData.slotVariants[slotId][dayKey]` é o override de um dia só ("hoje fiz o B").

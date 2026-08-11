@@ -67,6 +67,8 @@ interface StoreState {
   exportData: () => string;
   importData: (json: string) => boolean;
   resetData: () => void;
+  /** Volta a um estado anterior inteiro — é o que faz o "Desfazer" funcionar. */
+  restoreData: (data: AppData) => void;
 }
 
 function load(): AppData {
@@ -429,6 +431,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
   resetData: () => {
     const data = createDefaultData();
+    persist(data);
+    set({ data });
+  },
+
+  restoreData: (data) => {
     persist(data);
     set({ data });
   },

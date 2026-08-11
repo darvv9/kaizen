@@ -25,29 +25,49 @@ function variant(id: string, name: string, items: string[] = []): HabitVariant {
   return { id, name, items };
 }
 
-const defaultHabits: Habit[] = [
-  habit("h-academia", "cat-academia", "Academia", [
-    variant("v-treino-a", "Treino A", [
+/**
+ * A composição de fábrica do A/B/C. Exportada porque o atalho "criar Treino
+ * A · B · C" (no bloco da Semana e nos Ajustes) recria os exercícios junto —
+ * quem apagou a Academia sem querer recupera tudo num toque.
+ */
+export const DEFAULT_GYM_VARIANTS: { name: string; items: string[] }[] = [
+  {
+    name: "Treino A",
+    items: [
       "Supino reto 4x10",
       "Supino inclinado 3x10",
       "Desenvolvimento 3x12",
       "Elevação lateral 3x15",
       "Tríceps corda 4x12",
-    ]),
-    variant("v-treino-b", "Treino B", [
+    ],
+  },
+  {
+    name: "Treino B",
+    items: [
       "Barra fixa 4x max",
       "Remada curvada 4x10",
       "Puxada frente 3x12",
       "Rosca direta 4x10",
       "Rosca martelo 3x12",
-    ]),
-    variant("v-treino-c", "Treino C", [
+    ],
+  },
+  {
+    name: "Treino C",
+    items: [
       "Agachamento 4x10",
       "Leg press 4x12",
       "Cadeira extensora 3x15",
       "Mesa flexora 3x12",
       "Panturrilha 4x20",
-    ]),
+    ],
+  },
+];
+
+const defaultHabits: Habit[] = [
+  habit("h-academia", "cat-academia", "Academia", [
+    variant("v-treino-a", DEFAULT_GYM_VARIANTS[0].name, DEFAULT_GYM_VARIANTS[0].items),
+    variant("v-treino-b", DEFAULT_GYM_VARIANTS[1].name, DEFAULT_GYM_VARIANTS[1].items),
+    variant("v-treino-c", DEFAULT_GYM_VARIANTS[2].name, DEFAULT_GYM_VARIANTS[2].items),
   ]),
   habit("h-jiu", "cat-jiu", "Jiu-Jitsu", [
     variant("v-nogi", "No-gi"),
