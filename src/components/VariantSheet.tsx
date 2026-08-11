@@ -46,6 +46,36 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
       z={LAYER.sheetOverSheet}
       title={editing ? "Editar variação" : "Nova variação"}
       onClose={onClose}
+      footer={
+        <div className="flex gap-3">
+          {editing && (
+            <button
+              onClick={async () => {
+                const ok = await ask({
+                  title: `Excluir “${editing.name}”?`,
+                  message:
+                    "Os blocos que usam essa variação continuam na semana, só ficam sem ela.",
+                  confirmLabel: "Excluir variação",
+                  destructive: true,
+                });
+                if (!ok) return;
+                deleteVariant(habitId, editing.id);
+                onClose();
+              }}
+              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+            >
+              <Icon name="trash" size={16} /> Excluir
+            </button>
+          )}
+          <button
+            onClick={save}
+            disabled={!name.trim()}
+            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
+          >
+            Salvar
+          </button>
+        </div>
+      }
     >
       <div className="space-y-5">
         <div className="space-y-2">
@@ -74,35 +104,6 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
           <p className="text-[11px] text-white/35">
             Uma linha por exercício. Deixe vazio se não se aplica (ex: modalidade do jiu).
           </p>
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          {editing && (
-            <button
-              onClick={async () => {
-                const ok = await ask({
-                  title: `Excluir “${editing.name}”?`,
-                  message:
-                    "Os blocos que usam essa variação continuam na semana, só ficam sem ela.",
-                  confirmLabel: "Excluir variação",
-                  destructive: true,
-                });
-                if (!ok) return;
-                deleteVariant(habitId, editing.id);
-                onClose();
-              }}
-              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
-            >
-              <Icon name="trash" size={16} /> Excluir
-            </button>
-          )}
-          <button
-            onClick={save}
-            disabled={!name.trim()}
-            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
-          >
-            Salvar
-          </button>
         </div>
       </div>
     </Sheet>

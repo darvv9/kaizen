@@ -40,7 +40,9 @@ Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos víd
 ## Telas
 
 - **Hoje** (inicial) — checklist do dia. Header compacto (data, sequência, anel de progresso pequeno), card de cobrança do vídeo quando vence, e a lista ocupando o resto. Marcar = `toggleSlot` (`slotLogs`).
-- **Semana** — a grade seg–dom inteira numa tela só, editável: toque numa atividade da paleta e depois num horário para criar; arraste o bloco para mudar dia/horário (snap de 15 min); puxe a base para mudar a duração; toque para editar. Gestos com Pointer Events puros em `WeekGrid.tsx`; a matemática de janela/escala adaptativa está em `src/lib/weekGrid.ts` — mexer ali afeta legibilidade e área de toque.
+- **Semana** — a grade seg–dom inteira numa tela só, editável: toque numa atividade da paleta e depois num horário para criar; arraste o bloco para mudar dia/horário (snap de 15 min); puxe a base para mudar a duração; toque para editar. Gestos com Pointer Events puros em `WeekGrid.tsx`; a matemática está em `src/lib/weekGrid.ts` — mexer ali afeta legibilidade e área de toque.
+  - A grade é **sempre o dia inteiro** (`FULL_DAY`, 00h–24h) e rola dentro de uma caixa de tamanho fixo. `pxPerMinute()` escala pela **janela padrão** (7h–22h), que é o que aparece de cara; `initialScrollTop()` posiciona o scroll na abertura, recuando se houver bloco antes das 7h. Nada de janela calculada pelos extremos: um bloco às 23h não pode achatar o dia todo.
+  - Arrastar um bloco até ~44px da borda liga o auto-scroll (loop de `requestAnimationFrame`, porque `pointermove` não dispara com o dedo parado). Ao rolar, a origem do gesto é compensada (`g.y -= moved`), senão o bloco escorrega em relação ao dedo.
 - **Físico** — vídeos com data em IndexedDB, contagem regressiva do próximo (padrão 14 dias), histórico, salvar/excluir.
 - **Ajustes** — biblioteca de atividades, variações e categorias, com exclusão de verdade em cada linha; intervalo do vídeo; backup.
 
@@ -50,6 +52,8 @@ Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos víd
 - **Animação só responde a toque.** O que o dedo encostou pode reagir (`.press`, o check do HabitCard, o sheet subindo, o toast). Conteúdo que aparece sozinho **não** desliza: troca de aba é `animate-fade` (só opacidade) e nenhum card usa `initial={{ y }}` nem `layout`.
 - **Uma escala de cantos:** `rounded-sm2` (bloco) → `md2` (campo, linha, botão) → `lg2` (card, barra de abas) → `xl2` (sheet). Nada de `rounded-[26px]` avulso.
 - **Empilhamento vem de `src/lib/layers.ts`.** Nenhum `z-50` chutado. Quem tem z-index interno (a grade) usa `isolate` e resolve dentro da própria caixa.
+- **Todo overlay vai por portal** (`<Overlay>` → `document.body`): `Sheet`, `ConfirmHost` e `Feedback`, sempre os três juntos — se um ficar dentro do `#root` ele se empilha em outro contexto e a escala de `LAYER` deixa de valer entre eles. **Wrapper de página nunca leva `z-index`**: `position: relative` + `z-index` cria stacking context e prende o overlay filho atrás da barra de abas (foi exatamente esse o bug do "botão aparece atrás").
+- **Ação principal do sheet fica no rodapé fixo** (prop `footer` do `Sheet`), fora da área que rola. Botão que sobe junto com o formulário é cara de site.
 - **Espaço da barra de abas** sai de `--chrome-bottom` (classe `.pb-chrome`), nunca de um `pb-32` adivinhado. Margem lateral: `.page-x`.
 - **Nunca use `confirm()`/`alert()`** — no iPhone abre um alerta do Safari com o domínio e entrega o disfarce. Use `ask()` de `src/store/useConfirm.ts`, e escreva o que vai acontecer com nome e número ("Sai de 2 blocos da semana"), não "tem certeza?".
 

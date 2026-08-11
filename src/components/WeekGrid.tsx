@@ -1,15 +1,16 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import { computeSlotLayouts, type SlotLayout } from "../lib/overlapLayout";
 import { formatTime, parseTime, prettyMinutes } from "../lib/time";
 import {
   WEEK_DAYS,
+  FULL_DAY,
   MIN_BLOCK_PX,
   clampDuration,
   clampStart,
   floorToSnap,
-  gridRange,
   hourMarks,
+  initialScrollTop,
   pxPerMinute,
   snapMinutes,
   type GridRange,
@@ -19,6 +20,10 @@ import { shortVariantName, variantOf } from "../lib/variants";
 import type { RoutineSlot, Weekday } from "../types";
 
 const GUTTER = 28;
+
+/** Fade nas bordas da grade: sinaliza que o dia continua fora da janela. */
+const EDGE_FADE =
+  "linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)";
 
 interface Preview {
   dayIndex: number;
@@ -56,11 +61,21 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
   }, []);
 
   const week = useMemo(() => weekDates(), []);
-  const range = useMemo(() => gridRange(data.routineSlots), [data.routineSlots]);
-  const pxPerMin = pxPerMinute(size.height, range);
+  const range = FULL_DAY;
+  const pxPerMin = pxPerMinute(size.height);
   const contentHeight = range.minutes * pxPerMin;
   const colWidth = size.width / 7;
   const marks = useMemo(() => hourMarks(range), [range]);
+
+  /* A grade nasce mostrando a janela padrão. Só na primeira medição: depois
+     disso o scroll é do usuário e remedir não pode jogá-lo de volta. */
+  const scrolledOnce = useRef(false);
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || scrolledOnce.current || size.height <= 0) return;
+    scrolledOnce.current = true;
+    scroller.scrollTop = initialScrollTop(data.routineSlots, pxPerMin);
+  }, [size.height, pxPerMin, data.routineSlots]);
 
   const habits = useMemo(
     () => new Map(data.habits.map((h) => [h.id, h])),
@@ -130,11 +145,18 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg2 border border-white/[0.06] bg-ink-850/70"
-      >
-        <div className="flex" style={{ height: contentHeight }}>
+      {/* A caixa (borda + fundo) fica por fora e não muda de tamanho; quem rola
+          e recebe a máscara é o conteúdo. Máscara na caixa apagaria a borda. */}
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg2 border border-white/[0.06] bg-ink-850/70">
+        <div
+          ref={scrollRef}
+          style={{
+            maskImage: EDGE_FADE,
+            WebkitMaskImage: EDGE_FADE,
+          }}
+          className="h-full overflow-y-auto overscroll-contain"
+        >
+          <div className="flex" style={{ height: contentHeight }}>
           <div className="relative shrink-0" style={{ width: GUTTER }}>
             {marks.map((minutes) => (
               <span
@@ -207,6 +229,7 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
                     colWidth={colWidth}
                     pxPerMin={pxPerMin}
                     range={range}
+                    scrollerRef={scrollRef}
                     faded={armedHabitId !== null && armedHabitId !== habit.id}
                     onPreview={setPreview}
                     onEdit={() => onEditSlot(slot)}
@@ -214,6 +237,7 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
                   />
                 );
               })}
+            </div>
           </div>
         </div>
       </div>
@@ -241,6 +265,8 @@ interface BlockProps {
   colWidth: number;
   pxPerMin: number;
   range: GridRange;
+  /** A grade rola: arrastar até a borda precisa rolar junto. */
+  scrollerRef: React.RefObject<HTMLDivElement>;
   faded: boolean;
   onPreview: (preview: Preview | null) => void;
   onEdit: () => void;
@@ -254,6 +280,10 @@ type Gesture = {
   moved: boolean;
 };
 
+/** Faixa junto à borda que dispara o auto-scroll, e velocidade por quadro. */
+const EDGE_ZONE = 44;
+const EDGE_SPEED = 7;
+
 function WeekBlock({
   slot,
   name,
@@ -264,6 +294,7 @@ function WeekBlock({
   colWidth,
   pxPerMin,
   range,
+  scrollerRef,
   faded,
   onPreview,
   onEdit,
@@ -271,12 +302,95 @@ function WeekBlock({
 }: BlockProps) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const gesture = useRef<Gesture | null>(null);
+  const pointer = useRef({ x: 0, y: 0 });
+  const raf = useRef<number | null>(null);
   const startMinutes = parseTime(slot.startTime);
+
+  function computePreview(): Preview | null {
+    const g = gesture.current;
+    if (!g) return null;
+    const dx = pointer.current.x - g.x;
+    const dy = pointer.current.y - g.y;
+
+    return g.mode === "move"
+      ? {
+          dayIndex: Math.min(6, Math.max(0, dayIndex + Math.round(dx / colWidth))),
+          start: clampStart(
+            snapMinutes(startMinutes + dy / pxPerMin),
+            slot.durationMinutes,
+            range
+          ),
+          duration: slot.durationMinutes,
+        }
+      : {
+          dayIndex,
+          start: startMinutes,
+          duration: clampDuration(
+            snapMinutes(slot.durationMinutes + dy / pxPerMin),
+            startMinutes,
+            range
+          ),
+        };
+  }
+
+  function applyPreview() {
+    const next = computePreview();
+    if (!next) return;
+    setPreview(next);
+    onPreview(next);
+  }
+
+  /** -1 sobe, 1 desce, 0 fora das bordas. */
+  function edgeDirection(clientY: number): number {
+    const scroller = scrollerRef.current;
+    if (!scroller) return 0;
+    const rect = scroller.getBoundingClientRect();
+    if (clientY < rect.top + EDGE_ZONE) return -1;
+    if (clientY > rect.bottom - EDGE_ZONE) return 1;
+    return 0;
+  }
+
+  function stopEdgeScroll() {
+    if (raf.current !== null) {
+      cancelAnimationFrame(raf.current);
+      raf.current = null;
+    }
+  }
+
+  /* Rola sozinho enquanto o dedo fica parado na borda — por isso um loop de
+     quadro, e não só o pointermove, que só dispara com movimento. */
+  function edgeScrollTick() {
+    const scroller = scrollerRef.current;
+    const g = gesture.current;
+    if (!scroller || !g) {
+      stopEdgeScroll();
+      return;
+    }
+    const dir = edgeDirection(pointer.current.y);
+    if (dir === 0) {
+      stopEdgeScroll();
+      return;
+    }
+    const before = scroller.scrollTop;
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    scroller.scrollTop = Math.max(0, Math.min(max, before + dir * EDGE_SPEED));
+    const moved = scroller.scrollTop - before;
+    if (moved !== 0) {
+      // O conteúdo andou debaixo do dedo: a origem do gesto anda junto, senão
+      // o bloco escorrega em relação ao ponteiro.
+      g.y -= moved;
+      applyPreview();
+    }
+    raf.current = requestAnimationFrame(edgeScrollTick);
+  }
+
+  useEffect(() => stopEdgeScroll, []);
 
   function begin(e: React.PointerEvent, mode: Gesture["mode"]) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     gesture.current = { mode, x: e.clientX, y: e.clientY, moved: false };
+    pointer.current = { x: e.clientX, y: e.clientY };
   }
 
   function move(e: React.PointerEvent) {
@@ -286,38 +400,21 @@ function WeekBlock({
     const dy = e.clientY - g.y;
     if (!g.moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
     g.moved = true;
+    pointer.current = { x: e.clientX, y: e.clientY };
 
-    const next: Preview =
-      g.mode === "move"
-        ? {
-            dayIndex: Math.min(
-              6,
-              Math.max(0, dayIndex + Math.round(dx / colWidth))
-            ),
-            start: clampStart(
-              snapMinutes(startMinutes + dy / pxPerMin),
-              slot.durationMinutes,
-              range
-            ),
-            duration: slot.durationMinutes,
-          }
-        : {
-            dayIndex,
-            start: startMinutes,
-            duration: clampDuration(
-              snapMinutes(slot.durationMinutes + dy / pxPerMin),
-              startMinutes,
-              range
-            ),
-          };
+    applyPreview();
 
-    setPreview(next);
-    onPreview(next);
+    if (edgeDirection(e.clientY) !== 0) {
+      if (raf.current === null) raf.current = requestAnimationFrame(edgeScrollTick);
+    } else {
+      stopEdgeScroll();
+    }
   }
 
   function finish(e: React.PointerEvent, commit: boolean) {
     const g = gesture.current;
     gesture.current = null;
+    stopEdgeScroll();
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }

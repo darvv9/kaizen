@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Overlay } from "./Overlay";
 import { useFeedback } from "../store/useFeedback";
 import { LAYER } from "../lib/layers";
 
@@ -6,10 +7,11 @@ export function Feedback() {
   const toasts = useFeedback((s) => s.toasts);
 
   return (
-    <div
-      style={{ zIndex: LAYER.toast, paddingTop: "calc(var(--safe-top) + 0.75rem)" }}
-      className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 px-4"
-    >
+    <Overlay>
+      <div
+        style={{ zIndex: LAYER.toast, paddingTop: "calc(var(--safe-top) + 0.75rem)" }}
+        className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 px-4"
+      >
       <AnimatePresence>
         {toasts.map((t) => (
           <motion.div
@@ -24,10 +26,11 @@ export function Feedback() {
                 : "border-white/10 text-white"
             }`}
           >
-            {t.text}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
+              {t.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </Overlay>
   );
 }

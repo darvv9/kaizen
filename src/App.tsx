@@ -53,20 +53,16 @@ export default function App() {
         }}
       />
 
+      {/* Sem `z-index` aqui: com ele o <main> vira stacking context e prende
+          qualquer overlay filho atrás da barra de abas. A ordem no DOM já basta. */}
       {fill ? (
-        <main
-          className="page-x pt-chrome pb-chrome relative flex min-h-0 flex-1 flex-col overflow-hidden"
-          style={{ zIndex: LAYER.content }}
-        >
+        <main className="page-x pt-chrome pb-chrome relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <div key={tab} className="flex min-h-0 flex-1 flex-col animate-fade">
             <Page />
           </div>
         </main>
       ) : (
-        <main
-          className="page-x pt-chrome pb-chrome relative flex-1 overflow-y-auto overscroll-contain"
-          style={{ zIndex: LAYER.content }}
-        >
+        <main className="page-x pt-chrome pb-chrome relative flex-1 overflow-y-auto overscroll-contain">
           <div key={tab} className="animate-fade">
             <Page />
           </div>

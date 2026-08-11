@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { Overlay } from "./Overlay";
 import { useConfirm } from "../store/useConfirm";
 import { LAYER } from "../lib/layers";
 
@@ -7,7 +8,8 @@ export function ConfirmHost() {
   const resolve = useConfirm((s) => s.resolve);
 
   return (
-    <AnimatePresence>
+    <Overlay>
+      <AnimatePresence>
       {request && (
         <motion.div
           key={request.id}
@@ -23,7 +25,7 @@ export function ConfirmHost() {
             onClick={() => resolve(false)}
           />
           <motion.div
-            className="relative z-10 w-full max-w-md px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+            className="relative z-10 w-full max-w-md px-3 pb-[calc(var(--safe-bottom)+0.75rem)]"
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 24, opacity: 0 }}
@@ -56,6 +58,7 @@ export function ConfirmHost() {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </Overlay>
   );
 }

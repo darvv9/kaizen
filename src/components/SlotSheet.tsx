@@ -152,7 +152,43 @@ export function SlotSheet({
   }
 
   return (
-    <Sheet open={open} title={editing ? "Editar bloco" : "Novo bloco"} onClose={onClose}>
+    <Sheet
+      open={open}
+      title={editing ? "Editar bloco" : "Novo bloco"}
+      onClose={onClose}
+      footer={
+        <div className="space-y-2">
+          <button
+            onClick={save}
+            className="press w-full rounded-md2 bg-white py-3 text-sm font-semibold text-ink-950"
+          >
+            {editing
+              ? "Salvar"
+              : days.length > 1
+              ? `Adicionar em ${days.length} dias`
+              : "Adicionar"}
+          </button>
+
+          {editing && (
+            <div className="flex gap-2">
+              <button
+                onClick={removeSlot}
+                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
+              >
+                <Icon name="close" size={14} /> Tirar da semana
+              </button>
+              <button
+                onClick={removeHabit}
+                disabled={!habit}
+                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
+              >
+                <Icon name="trash" size={14} /> Excluir atividade
+              </button>
+            </div>
+          )}
+        </div>
+      }
+    >
       <div className="space-y-5">
         {creatingHabit ? (
           <>
@@ -303,7 +339,10 @@ export function SlotSheet({
             onChange={(e) => setStartTime(e.target.value)}
             className="field [color-scheme:dark]"
           />
-          <div className="flex flex-wrap gap-2 pt-1">
+        </Field>
+
+        <Field label="Duração">
+          <div className="flex flex-wrap gap-2">
             {DURATION_OPTIONS.map((d) => (
               <button
                 key={d}
@@ -317,37 +356,6 @@ export function SlotSheet({
             ))}
           </div>
         </Field>
-
-        <div className="space-y-3 pt-1">
-          <button
-            onClick={save}
-            className="press w-full rounded-md2 bg-white py-3 text-sm font-semibold text-ink-950"
-          >
-            {editing
-              ? "Salvar"
-              : days.length > 1
-              ? `Adicionar em ${days.length} dias`
-              : "Adicionar"}
-          </button>
-
-          {editing && (
-            <div className="flex gap-2">
-              <button
-                onClick={removeSlot}
-                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
-              >
-                <Icon name="close" size={14} /> Tirar da semana
-              </button>
-              <button
-                onClick={removeHabit}
-                disabled={!habit}
-                className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
-              >
-                <Icon name="trash" size={14} /> Excluir atividade
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </Sheet>
   );

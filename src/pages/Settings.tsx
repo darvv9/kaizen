@@ -469,6 +469,25 @@ function HabitSheet({
         open={open}
         title={editing ? "Editar atividade" : "Nova atividade"}
         onClose={onClose}
+        footer={
+          <div className="flex gap-3">
+            {editing && (
+              <button
+                onClick={remove}
+                className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+              >
+                <Icon name="trash" size={16} /> Excluir
+              </button>
+            )}
+            <button
+              disabled={!valid}
+              onClick={save}
+              className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
+            >
+              Salvar
+            </button>
+          </div>
+        }
       >
         <div className="space-y-5">
           <Field label="Nome">
@@ -553,24 +572,6 @@ function HabitSheet({
               Salve para configurar as variações (Treino A/B/C, No-gi/Gi).
             </p>
           )}
-
-          <div className="flex gap-3 pt-1">
-            {editing && (
-              <button
-                onClick={remove}
-                className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
-              >
-                <Icon name="trash" size={16} /> Excluir
-              </button>
-            )}
-            <button
-              disabled={!valid}
-              onClick={save}
-              className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
-            >
-              Salvar
-            </button>
-          </div>
         </div>
       </Sheet>
 
@@ -623,6 +624,25 @@ function CategorySheet({
       open={open}
       title={editing ? "Editar categoria" : "Nova categoria"}
       onClose={onClose}
+      footer={
+        <div className="flex gap-3">
+          {editing && (
+            <button
+              onClick={() => onDelete(editing)}
+              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+            >
+              <Icon name="trash" size={16} /> Excluir
+            </button>
+          )}
+          <button
+            disabled={!name.trim()}
+            onClick={save}
+            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
+          >
+            Salvar
+          </button>
+        </div>
+      }
     >
       <div className="space-y-5">
         <Field label="Nome">
@@ -668,24 +688,6 @@ function CategorySheet({
             ))}
           </div>
         </Field>
-
-        <div className="flex gap-3 pt-1">
-          {editing && (
-            <button
-              onClick={() => onDelete(editing)}
-              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
-            >
-              <Icon name="trash" size={16} /> Excluir
-            </button>
-          )}
-          <button
-            disabled={!name.trim()}
-            onClick={save}
-            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
-          >
-            Salvar
-          </button>
-        </div>
       </div>
     </Sheet>
   );

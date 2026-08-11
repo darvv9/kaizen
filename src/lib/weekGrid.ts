@@ -11,10 +11,11 @@ export const MIN_BLOCK_PX = 20;
 
 const MIN_PX_PER_MIN = 0.42;
 const MAX_PX_PER_MIN = 1.1;
-const DEFAULT_START = 7 * 60;
-const DEFAULT_END = 22 * 60;
-/** Folga nas pontas: o primeiro e o último bloco não encostam na borda. */
-const EDGE_PADDING = 20;
+
+/** Janela que aparece de cara. O resto do dia fica a um scroll de distância. */
+const VIEW_START = 7 * 60;
+const VIEW_END = 22 * 60;
+const VIEW_MINUTES = VIEW_END - VIEW_START;
 
 export interface GridRange {
   start: number;
@@ -22,27 +23,28 @@ export interface GridRange {
   minutes: number;
 }
 
-/** Janela de horas da grade: cresce só o necessário pra caber a rotina. */
-export function gridRange(slots: RoutineSlot[]): GridRange {
-  let start = DEFAULT_START;
-  let end = DEFAULT_END;
-  for (const slot of slots) {
-    const from = parseTime(slot.startTime);
-    start = Math.min(start, from);
-    end = Math.max(end, from + slot.durationMinutes);
-  }
-  const first = Math.max(0, start - EDGE_PADDING);
-  const last = Math.min(24 * 60, end + EDGE_PADDING);
-  return { start: first, end: last, minutes: last - first };
-}
+/** A grade é sempre o dia inteiro — quem escolhe a janela é o scroll. */
+export const FULL_DAY: GridRange = { start: 0, end: 24 * 60, minutes: 24 * 60 };
 
-/** Escala vertical: tenta caber a semana inteira na tela sem sumir com os blocos. */
-export function pxPerMinute(availableHeight: number, range: GridRange): number {
-  if (availableHeight <= 0 || range.minutes <= 0) return MIN_PX_PER_MIN;
+/**
+ * Escala vertical: a janela padrão (7h–22h) preenche a caixa visível, e as
+ * outras 9 horas do dia ficam fora dela, alcançáveis rolando.
+ */
+export function pxPerMinute(availableHeight: number): number {
+  if (availableHeight <= 0) return MIN_PX_PER_MIN;
   return Math.min(
     MAX_PX_PER_MIN,
-    Math.max(MIN_PX_PER_MIN, availableHeight / range.minutes)
+    Math.max(MIN_PX_PER_MIN, availableHeight / VIEW_MINUTES)
   );
+}
+
+/** Abre em 7h — mas nunca escondendo um bloco que começa antes disso. */
+export function initialScrollTop(slots: RoutineSlot[], pxPerMin: number): number {
+  let earliest = VIEW_START;
+  for (const slot of slots) {
+    earliest = Math.min(earliest, parseTime(slot.startTime) - 30);
+  }
+  return Math.max(0, Math.min(VIEW_START, earliest)) * pxPerMin;
 }
 
 export function snapMinutes(minutes: number): number {
@@ -69,7 +71,7 @@ export function clampDuration(
   return Math.max(MIN_DURATION, Math.min(range.end - startMinutes, minutes));
 }
 
-/** Só as horas cheias que caem dentro da janela — a folga das pontas fica limpa. */
+/** Só as horas cheias estritamente dentro da janela: 0h e 24h são a borda. */
 export function hourMarks(range: GridRange): number[] {
   const out: number[] = [];
   for (let m = Math.ceil(range.start / 60) * 60; m < range.end; m += 60) {
