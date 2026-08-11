@@ -100,6 +100,13 @@ video {
     -webkit-backdrop-filter: saturate(160%) blur(20px);
   }
 
+  /* Superfície de sheet: OPACA. Vidro fosco funciona numa barra fina que
+     paira de propósito (a de abas), mas num painel que ocupa 90% da tela ele
+     deixa o app aparecer por baixo e a coisa toda parece flutuando. */
+  .sheet-surface {
+    background: #121217;
+  }
+
   .card {
     @apply rounded-lg2 border border-white/[0.07] bg-ink-850;
   }

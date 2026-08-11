@@ -45,6 +45,7 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
       open={open}
       z={LAYER.sheetOverSheet}
       title={editing ? "Editar variação" : "Nova variação"}
+      variant="full"
       onClose={onClose}
       footer={
         <div className="flex gap-3">
@@ -98,11 +99,14 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={7}
-            placeholder={"Supino reto 4x10\nDesenvolvimento 3x12\nTríceps corda 4x12"}
+            placeholder={
+              "Supino reto 4x10\nDesenvolvimento 3x12\nTríceps corda 4x12"
+            }
             className="w-full resize-none rounded-md2 bg-ink-800 px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-white/25"
           />
           <p className="text-[11px] text-white/35">
-            Uma linha por exercício. Deixe vazio se não se aplica (ex: modalidade do jiu).
+            Uma linha por exercício. Deixe vazio se não se aplica (ex:
+            modalidade do jiu).
           </p>
         </div>
       </div>

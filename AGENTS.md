@@ -54,6 +54,7 @@ Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos víd
 - **Empilhamento vem de `src/lib/layers.ts`.** Nenhum `z-50` chutado. Quem tem z-index interno (a grade) usa `isolate` e resolve dentro da própria caixa.
 - **Todo overlay vai por portal** (`<Overlay>` → `document.body`): `Sheet`, `ConfirmHost` e `Feedback`, sempre os três juntos — se um ficar dentro do `#root` ele se empilha em outro contexto e a escala de `LAYER` deixa de valer entre eles. **Wrapper de página nunca leva `z-index`**: `position: relative` + `z-index` cria stacking context e prende o overlay filho atrás da barra de abas (foi exatamente esse o bug do "botão aparece atrás").
 - **Ação principal do sheet fica no rodapé fixo** (prop `footer` do `Sheet`), fora da área que rola. Botão que sobe junto com o formulário é cara de site.
+- **Sheet curto ou tela cheia, nunca o meio-termo.** `<Sheet variant>`: `sheet` abraça o conteúdo e fica preso embaixo (DayVariantSheet, poucos campos); `full` é tela cheia com cabeçalho e rodapé fixos e **sem arrastar** (SlotSheet, atividade, categoria, variação). Um formulário longo dentro de um `sheet` vira um painel ocupando 90% da tela com cantos arredondados, alça, sombra e uma fresta do app aparecendo em cima — o usuário lê isso como "flutuante", e com razão: é uma tela fantasiada de cartão. Regra prática: se o conteúdo não cabe com folga em ~60% da altura, é `full`.
 - **Espaço da barra de abas** sai de `--chrome-bottom` (classe `.pb-chrome`), nunca de um `pb-32` adivinhado. Margem lateral: `.page-x`.
 - **Nunca use `confirm()`/`alert()`** — no iPhone abre um alerta do Safari com o domínio e entrega o disfarce. Use `ask()` de `src/store/useConfirm.ts`, e escreva o que vai acontecer com nome e número ("Sai de 2 blocos da semana"), não "tem certeza?".
 
@@ -93,6 +94,17 @@ Sem emoji em lugar nenhum do app. Todos os ícones são arquivos `.svg` em `src/
 - Ícone novo: criar o `.svg` **e** adicionar o nome em `src/icons/names.ts`.
 - `Category.icon` guarda o nome do ícone; dados antigos com emoji são convertidos no migrate por `EMOJI_TO_ICON`.
 - `public/icons/` é só do PWA (favicon, apple-touch, 192/512) — não misturar.
+
+## Como olhar o app de verdade
+
+Bug de layout não se resolve lendo código — três tentativas foram gastas assim. Dá pra renderizar e medir sem instalar navegador:
+
+```sh
+npm run preview                      # serve o dist em :4173
+npm i --no-save playwright-core      # usa o Chrome/Edge já instalado
+```
+
+Um script curto com `chromium.launch({ executablePath: "…/chrome.exe" })`, viewport de iPhone (393×852 e 375×667, `isMobile`, `hasTouch`), tira print e mede o que interessa: `getBoundingClientRect()` do painel, `scrollHeight > clientHeight` e o `transform` durante um arrasto via CDP `Input.dispatchTouchEvent`. Foi assim que apareceu o número que importava — o painel ocupando 89% da tela e rolando por dentro no iPhone SE. **Sempre teste nos dois tamanhos:** o que cabe no Pro estoura no SE.
 
 ## Atualização no iPhone
 

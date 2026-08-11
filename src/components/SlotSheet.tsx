@@ -244,6 +244,7 @@ export function SlotSheet({
       <Sheet
         open={open}
         title={editing ? "Editar bloco" : "Novo bloco"}
+        variant="full"
         onClose={onClose}
         /* Só duas ações aqui, e nenhuma delas apaga a atividade do app: o
          "Excluir atividade" mora lá em cima, junto da atividade que ele
@@ -326,7 +327,9 @@ export function SlotSheet({
                     <button
                       onClick={() => setUseKit(false)}
                       className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                        !useKit ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                        !useKit
+                          ? "bg-white text-ink-950"
+                          : "bg-ink-800 text-white/50"
                       }`}
                     >
                       Sem variação
@@ -334,15 +337,17 @@ export function SlotSheet({
                     <button
                       onClick={() => setUseKit(true)}
                       className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
-                        useKit ? "bg-white text-ink-950" : "bg-ink-800 text-white/50"
+                        useKit
+                          ? "bg-white text-ink-950"
+                          : "bg-ink-800 text-white/50"
                       }`}
                     >
                       {newKit.label}
                     </button>
                   </div>
                   <p className="text-[11px] leading-relaxed text-white/35">
-                    Sugestão pelo nome “{newName.trim()}”. Depois dá pra criar outra
-                    ou excluir, segurando em cima.
+                    Sugestão pelo nome “{newName.trim()}”. Depois dá pra criar
+                    outra ou excluir, segurando em cima.
                   </p>
                 </Field>
               )}

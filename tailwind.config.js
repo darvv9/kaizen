@@ -38,7 +38,7 @@ export default {
       },
       boxShadow: {
         glow: "0 0 24px -4px rgba(255,255,255,0.35)",
-        sheet: "0 -12px 40px rgba(0,0,0,0.45)",
+        sheet: "0 -8px 30px rgba(0,0,0,0.5)",
       },
       keyframes: {
         /* Troca de aba: só opacidade. Nada desliza sozinho na tela. */

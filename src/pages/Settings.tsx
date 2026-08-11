@@ -64,7 +64,7 @@ export function Settings() {
   async function removeCategory(cat: Category) {
     const habits = data.habits.filter((h) => h.categoryId === cat.id);
     const slots = data.routineSlots.filter((s) =>
-      habits.some((h) => h.id === s.habitId)
+      habits.some((h) => h.id === s.habitId),
     ).length;
     const ok = await ask({
       title: `Excluir a categoria “${cat.name}”?`,
@@ -99,7 +99,10 @@ export function Settings() {
     const reader = new FileReader();
     reader.onload = () => {
       const ok = importData(String(reader.result));
-      push(ok ? "Backup restaurado" : "Arquivo inválido", ok ? "success" : "error");
+      push(
+        ok ? "Backup restaurado" : "Arquivo inválido",
+        ok ? "success" : "error",
+      );
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -108,7 +111,9 @@ export function Settings() {
   return (
     <div className="space-y-6">
       <header>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Ajustes</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">
+          Ajustes
+        </div>
         <h1 className="text-xl font-bold text-white">Biblioteca</h1>
         <p className="mt-1 text-sm text-white/45">
           Atividades, variações e categorias. Dias e horários ficam na Semana.
@@ -181,14 +186,21 @@ export function Settings() {
                       {h.variants.length > 0 && (
                         <span
                           className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                          style={{ backgroundColor: `${cat.color}1f`, color: cat.color }}
+                          style={{
+                            backgroundColor: `${cat.color}1f`,
+                            color: cat.color,
+                          }}
                         >
                           {h.variants.length}{" "}
                           {h.variants.length === 1 ? "variação" : "variações"}
                         </span>
                       )}
                       <span className="shrink-0 text-[11px] text-white/35">
-                        {data.routineSlots.filter((s) => s.habitId === h.id).length} na semana
+                        {
+                          data.routineSlots.filter((s) => s.habitId === h.id)
+                            .length
+                        }{" "}
+                        na semana
                       </span>
                     </button>
                     <button
@@ -201,7 +213,9 @@ export function Settings() {
                   </div>
                 ))}
                 {habits.length === 0 && (
-                  <div className="px-1 py-2 text-xs text-white/35">Sem atividades ainda.</div>
+                  <div className="px-1 py-2 text-xs text-white/35">
+                    Sem atividades ainda.
+                  </div>
                 )}
               </div>
             </section>
@@ -220,8 +234,9 @@ export function Settings() {
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-white/80">Backup</h2>
         <p className="text-xs leading-relaxed text-white/45">
-          Seus dados ficam só neste aparelho. O backup guarda a rotina e as datas dos vídeos —
-          os vídeos em si não cabem no arquivo; para guardar um vídeo, use Baixar na tela Físico.
+          Seus dados ficam só neste aparelho. O backup guarda a rotina e as
+          datas dos vídeos — os vídeos em si não cabem no arquivo; para guardar
+          um vídeo, use Baixar na tela Físico.
         </p>
         <div className="flex gap-3">
           <button
@@ -271,7 +286,8 @@ export function Settings() {
           onClick={async () => {
             const ok = await ask({
               title: "Resetar o Kaizen?",
-              message: "Sua rotina volta ao padrão de fábrica. Os vídeos ficam.",
+              message:
+                "Sua rotina volta ao padrão de fábrica. Os vídeos ficam.",
               confirmLabel: "Resetar tudo",
               destructive: true,
             });
@@ -382,7 +398,9 @@ function PhysiqueSettings() {
             }}
             className="row"
           >
-            <span className="flex-1 text-sm text-white/85">Aviso no ícone do app</span>
+            <span className="flex-1 text-sm text-white/85">
+              Aviso no ícone do app
+            </span>
             <span
               className={`flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 transition ${
                 badgeEnabled ? "bg-accent" : "bg-ink-600"
@@ -392,21 +410,26 @@ function PhysiqueSettings() {
                 className={`h-5 w-5 rounded-full bg-white transition-transform ${
                   badgeEnabled ? "translate-x-4" : ""
                 }`}
-                style={badgeEnabled ? { backgroundColor: "#08080a" } : undefined}
+                style={
+                  badgeEnabled ? { backgroundColor: "#08080a" } : undefined
+                }
               />
             </span>
           </button>
           <p className="text-[11px] leading-relaxed text-white/35">
-            Bolinha no ícone quando o vídeo vencer. Só funciona com o Kaizen instalado na tela
-            de início, e atualiza quando você abre o app — notificação de verdade precisaria de
-            um servidor.
+            Bolinha no ícone quando o vídeo vencer. Só funciona com o Kaizen
+            instalado na tela de início, e atualiza quando você abre o app —
+            notificação de verdade precisaria de um servidor.
           </p>
         </div>
       )}
 
       <p className="text-[11px] leading-relaxed text-white/40">
         {physique.entries.length} vídeo(s)
-        {used !== null && used > 0 ? ` · ${formatBytes(used)} neste aparelho` : ""}.
+        {used !== null && used > 0
+          ? ` · ${formatBytes(used)} neste aparelho`
+          : ""}
+        .
       </p>
       {physique.entries.length > 0 && (
         <button
@@ -455,7 +478,9 @@ function HabitSheet({
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [variantSheet, setVariantSheet] = useState(false);
-  const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(null);
+  const [editingVariant, setEditingVariant] = useState<HabitVariant | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -477,7 +502,8 @@ function HabitSheet({
   async function removeVariant(h: Habit, v: HabitVariant) {
     const ok = await ask({
       title: `Excluir a variação “${v.name}”?`,
-      message: "Os blocos que usam ela continuam na semana, só ficam sem variação.",
+      message:
+        "Os blocos que usam ela continuam na semana, só ficam sem variação.",
       confirmLabel: "Excluir variação",
       destructive: true,
     });
@@ -504,6 +530,7 @@ function HabitSheet({
       <Sheet
         open={open}
         title={editing ? "Editar atividade" : "Nova atividade"}
+        variant="full"
         onClose={onClose}
         footer={
           <div className="flex gap-3">
@@ -546,7 +573,9 @@ function HabitSheet({
                     backgroundColor:
                       categoryId === c.id ? c.color : "rgba(255,255,255,0.06)",
                     color:
-                      categoryId === c.id ? contrastInk(c.color) : "rgba(255,255,255,0.5)",
+                      categoryId === c.id
+                        ? contrastInk(c.color)
+                        : "rgba(255,255,255,0.5)",
                   }}
                 >
                   <Icon name={c.icon} size={13} />
@@ -600,8 +629,9 @@ function HabitSheet({
                 </button>
               )}
               <p className="text-[11px] leading-relaxed text-white/35">
-                Toque pra editar, segure pra excluir. Ex: Treino A/B/C na academia,
-                No-gi/Gi no jiu — a composição de cada uma fica guardada aqui.
+                Toque pra editar, segure pra excluir. Ex: Treino A/B/C na
+                academia, No-gi/Gi no jiu — a composição de cada uma fica
+                guardada aqui.
               </p>
             </Field>
           ) : (
@@ -660,6 +690,7 @@ function CategorySheet({
     <Sheet
       open={open}
       title={editing ? "Editar categoria" : "Nova categoria"}
+      variant="full"
       onClose={onClose}
       footer={
         <div className="flex gap-3">
@@ -699,7 +730,9 @@ function CategorySheet({
                 onClick={() => setIcon(ic)}
                 aria-label={ic}
                 className={`press flex h-11 w-11 items-center justify-center rounded-md2 ${
-                  icon === ic ? "bg-accent text-ink-950" : "bg-ink-800 text-white/70"
+                  icon === ic
+                    ? "bg-accent text-ink-950"
+                    : "bg-ink-800 text-white/70"
                 }`}
               >
                 <Icon name={ic} size={20} />
@@ -730,7 +763,13 @@ function CategorySheet({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-2">
       <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
