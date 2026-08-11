@@ -42,7 +42,24 @@ Há export/import de backup em JSON nos Ajustes. O backup leva as datas dos víd
 - **Hoje** (inicial) — checklist do dia. Header compacto (data, sequência, anel de progresso pequeno), card de cobrança do vídeo quando vence, e a lista ocupando o resto. Marcar = `toggleSlot` (`slotLogs`).
 - **Semana** — a grade seg–dom inteira numa tela só, editável: toque numa atividade da paleta e depois num horário para criar; arraste o bloco para mudar dia/horário (snap de 15 min); puxe a base para mudar a duração; toque para editar. Gestos com Pointer Events puros em `WeekGrid.tsx`; a matemática de janela/escala adaptativa está em `src/lib/weekGrid.ts` — mexer ali afeta legibilidade e área de toque.
 - **Físico** — vídeos com data em IndexedDB, contagem regressiva do próximo (padrão 14 dias), histórico, salvar/excluir.
-- **Ajustes** — biblioteca de atividades, variações e categorias; intervalo do vídeo; backup.
+- **Ajustes** — biblioteca de atividades, variações e categorias, com exclusão de verdade em cada linha; intervalo do vídeo; backup.
+
+## Regras de interface (o que faz parecer app e não site)
+
+- **Nada de seleção de texto.** `body` tem `user-select: none` e `-webkit-touch-callout: none`; só `input`/`textarea`/`select` reabrem a seleção. Nunca reative em texto comum.
+- **Animação só responde a toque.** O que o dedo encostou pode reagir (`.press`, o check do HabitCard, o sheet subindo, o toast). Conteúdo que aparece sozinho **não** desliza: troca de aba é `animate-fade` (só opacidade) e nenhum card usa `initial={{ y }}` nem `layout`.
+- **Uma escala de cantos:** `rounded-sm2` (bloco) → `md2` (campo, linha, botão) → `lg2` (card, barra de abas) → `xl2` (sheet). Nada de `rounded-[26px]` avulso.
+- **Empilhamento vem de `src/lib/layers.ts`.** Nenhum `z-50` chutado. Quem tem z-index interno (a grade) usa `isolate` e resolve dentro da própria caixa.
+- **Espaço da barra de abas** sai de `--chrome-bottom` (classe `.pb-chrome`), nunca de um `pb-32` adivinhado. Margem lateral: `.page-x`.
+- **Nunca use `confirm()`/`alert()`** — no iPhone abre um alerta do Safari com o domínio e entrega o disfarce. Use `ask()` de `src/store/useConfirm.ts`, e escreva o que vai acontecer com nome e número ("Sai de 2 blocos da semana"), não "tem certeza?".
+
+## Excluir vs. tirar da rotina
+
+Duas ações diferentes, com nomes diferentes na tela — não misturar:
+
+- **Tirar da semana** (`deleteRoutineSlot`) — apaga um bloco; a atividade continua na biblioteca.
+- **Excluir atividade** (`deleteHabit`) — some do app inteiro: biblioteca, todos os blocos e o histórico. Disponível nos Ajustes (lixeira na linha e dentro do sheet), no sheet do bloco na Semana e **segurando o chip na paleta da Semana** (`useLongPress`, 450 ms, cancela se o dedo deslizar — a paleta rola na horizontal).
+- **Excluir categoria** (`deleteCategory`) — leva junto as atividades e os blocos dela; a confirmação diz quantos.
 
 ## Variações
 

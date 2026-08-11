@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
+import { ask } from "../store/useConfirm";
 import { Icon } from "../components/Icon";
 import { media, QUOTA_ERROR } from "../data/media";
 import { useMediaUrl } from "../lib/useMediaUrl";
@@ -88,7 +89,13 @@ export function Physique() {
   }
 
   async function remove(entry: PhysiqueEntry) {
-    if (!confirm(`Excluir o vídeo de ${prettyDayKey(entry.date)}?`)) return;
+    const ok = await ask({
+      title: "Excluir este vídeo?",
+      message: `${prettyDayKey(entry.date)} sai do histórico e do aparelho.`,
+      confirmLabel: "Excluir vídeo",
+      destructive: true,
+    });
+    if (!ok) return;
     const mediaId = deletePhysiqueEntry(entry.id);
     setSelectedId(null);
     if (mediaId) {
@@ -189,7 +196,7 @@ export function Physique() {
         <button
           onClick={() => pickRef.current?.click()}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-50"
         >
           <Icon name="plus" size={15} />
           {busy ? "Salvando…" : "Adicionar vídeo"}
@@ -197,7 +204,7 @@ export function Physique() {
         <button
           onClick={() => recordRef.current?.click()}
           disabled={busy}
-          className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 rounded-md2 bg-ink-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Icon name="camera" size={16} />
           Gravar
@@ -289,7 +296,7 @@ function HistoryRow({
       onClick={onSelect}
       className="card flex w-full items-center gap-3 p-2.5 text-left"
     >
-      <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black">
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md2 bg-black">
         {state === "ready" && url ? (
           <video
             src={`${url}#t=0.5`}

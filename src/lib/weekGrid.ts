@@ -6,8 +6,8 @@ export const WEEK_DAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 0];
 
 export const SNAP_MINUTES = 15;
 export const MIN_DURATION = 15;
-/** Altura mínima de um bloco para continuar tocável. */
-export const MIN_BLOCK_PX = 16;
+/** Altura mínima de um bloco para o nome caber e continuar tocável. */
+export const MIN_BLOCK_PX = 20;
 
 const MIN_PX_PER_MIN = 0.42;
 const MAX_PX_PER_MIN = 1.1;

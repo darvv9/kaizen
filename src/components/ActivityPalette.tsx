@@ -1,7 +1,11 @@
 import { useMemo } from "react";
 import { useStore } from "../store/useStore";
+import { useFeedback } from "../store/useFeedback";
+import { ask } from "../store/useConfirm";
+import { useLongPress } from "../lib/useLongPress";
 import { contrastInk } from "../lib/color";
 import { Icon } from "./Icon";
+import type { Category, Habit } from "../types";
 
 interface Props {
   activeId: string | null;
@@ -11,6 +15,8 @@ interface Props {
 
 export function ActivityPalette({ activeId, onSelect, onCreate }: Props) {
   const data = useStore((s) => s.data);
+  const deleteHabit = useStore((s) => s.deleteHabit);
+  const push = useFeedback((s) => s.push);
 
   const chips = useMemo(() => {
     const order = new Map(data.categories.map((c) => [c.id, c.order]));
@@ -27,42 +33,86 @@ export function ActivityPalette({ activeId, onSelect, onCreate }: Props) {
       );
   }, [data.habits, data.categories]);
 
+  async function confirmDelete(habit: Habit) {
+    const count = data.routineSlots.filter((s) => s.habitId === habit.id).length;
+    const ok = await ask({
+      title: `Excluir “${habit.name}”?`,
+      message:
+        count === 0
+          ? "Sai da biblioteca de vez. Não dá pra desfazer."
+          : `Sai da biblioteca e de ${count} ${
+              count === 1 ? "bloco" : "blocos"
+            } da semana, com o histórico. Não dá pra desfazer.`,
+      confirmLabel: "Excluir atividade",
+      destructive: true,
+    });
+    if (!ok) return;
+    if (habit.id === activeId) onSelect(null);
+    deleteHabit(habit.id);
+    push(`${habit.name} excluída`, "success");
+  }
+
   return (
-    <div className="-mx-4 flex shrink-0 gap-2 overflow-x-auto px-4 pb-1">
-      {chips.map(({ habit, category }) => {
-        const color = category?.color ?? "#ffffff";
-        const active = habit.id === activeId;
-        return (
-          <button
-            key={habit.id}
-            onClick={() => onSelect(active ? null : habit.id)}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition active:scale-95"
-            style={
-              active
-                ? {
-                    backgroundColor: color,
-                    borderColor: color,
-                    color: contrastInk(color),
-                  }
-                : {
-                    backgroundColor: `${color}14`,
-                    borderColor: `${color}40`,
-                    color: "rgba(255,255,255,0.78)",
-                  }
-            }
-          >
-            {category && <Icon name={category.icon} size={13} />}
-            {habit.name}
-          </button>
-        );
-      })}
+    <div className="-mx-[var(--page-x)] flex shrink-0 gap-2 overflow-x-auto px-[var(--page-x)] pb-1">
+      {chips.map(({ habit, category }) => (
+        <Chip
+          key={habit.id}
+          habit={habit}
+          category={category}
+          active={habit.id === activeId}
+          onSelect={() => onSelect(habit.id === activeId ? null : habit.id)}
+          onLongPress={() => confirmDelete(habit)}
+        />
+      ))}
       <button
         onClick={onCreate}
-        className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-xs font-medium text-white/55"
+        className="press flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-xs font-medium text-white/55"
       >
         <Icon name="plus" size={13} />
         Nova
       </button>
     </div>
+  );
+}
+
+function Chip({
+  habit,
+  category,
+  active,
+  onSelect,
+  onLongPress,
+}: {
+  habit: Habit;
+  category?: Category;
+  active: boolean;
+  onSelect: () => void;
+  onLongPress: () => void;
+}) {
+  const color = category?.color ?? "#ffffff";
+  const { pressing, handlers } = useLongPress({ onLongPress, onClick: onSelect });
+
+  return (
+    <button
+      {...handlers}
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-transform duration-150 ${
+        pressing ? "scale-95" : ""
+      }`}
+      style={
+        active
+          ? {
+              backgroundColor: color,
+              borderColor: color,
+              color: contrastInk(color),
+            }
+          : {
+              backgroundColor: `${color}14`,
+              borderColor: `${color}40`,
+              color: "rgba(255,255,255,0.78)",
+            }
+      }
+    >
+      {category && <Icon name={category.icon} size={13} />}
+      {habit.name}
+    </button>
   );
 }

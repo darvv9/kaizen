@@ -1,11 +1,15 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useFeedback } from "../store/useFeedback";
+import { LAYER } from "../lib/layers";
 
 export function Feedback() {
   const toasts = useFeedback((s) => s.toasts);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex flex-col items-center gap-2 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+    <div
+      style={{ zIndex: LAYER.toast, paddingTop: "calc(var(--safe-top) + 0.75rem)" }}
+      className="pointer-events-none fixed inset-x-0 top-0 flex flex-col items-center gap-2 px-4"
+    >
       <AnimatePresence>
         {toasts.map((t) => (
           <motion.div

@@ -4,16 +4,39 @@
 
 :root {
   color-scheme: dark;
+
+  /* Uma única fonte de verdade pro espaçamento das telas. */
+  --page-x: 1.25rem;
+  /* Altura real da barra de abas (pílula + folgas), sem a safe area. */
+  --tabbar-h: 5rem;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --chrome-bottom: calc(var(--tabbar-h) + var(--safe-bottom));
+  --chrome-top: calc(var(--safe-top) + 1.25rem);
 }
 
-* {
-  -webkit-tap-highlight-color: transparent;
+/* Instalado na tela de início a status bar fica POR CIMA do app (o app é que
+   "sai pra fora"). Se o iOS não reportar o inset, o piso aqui garante que nada
+   encoste no relógio e na bateria. */
+@media (display-mode: standalone) {
+  :root {
+    --safe-top: max(env(safe-area-inset-top, 0px), 2.75rem);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 1rem);
+  }
 }
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+/* A página em si nunca rola: quem rola é o container interno de cada tela.
+   Sem isso o iOS "borracha" o documento inteiro e tudo parece solto. */
+html {
+  overflow: hidden;
 }
 
 body {
@@ -23,7 +46,38 @@ body {
   font-family: theme("fontFamily.sans");
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  /* App, não documento: nada de seleção nem lupa/menu de copiar no toque longo. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  /* Mata o zoom por toque duplo e o atraso de 300ms do clique. */
+  touch-action: manipulation;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A exceção: onde se digita, texto é texto. */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+button,
+a,
+[role="button"] {
+  -webkit-user-drag: none;
+}
+
+img,
+svg,
+video {
+  -webkit-user-drag: none;
 }
 
 /* Hide scrollbars but keep scroll */
@@ -40,7 +94,20 @@ body {
   }
 
   .card {
-    @apply rounded-xl2 bg-ink-850/80 border border-white/[0.06];
+    @apply rounded-lg2 border border-white/[0.07] bg-ink-850;
+  }
+
+  .row {
+    @apply flex w-full items-center gap-3 rounded-md2 bg-white/[0.04] px-3.5 py-3 text-left;
+  }
+
+  .field {
+    @apply w-full rounded-md2 bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30;
+  }
+
+  /* Resposta imediata ao toque — o que substitui as animações de entrada. */
+  .press {
+    @apply transition-transform duration-100 active:scale-[0.97];
   }
 
   .icon {
@@ -56,10 +123,20 @@ body {
   }
 
   .safe-bottom {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+    padding-bottom: calc(var(--safe-bottom) + 0.5rem);
   }
 
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
+  .page-x {
+    padding-left: var(--page-x);
+    padding-right: var(--page-x);
+  }
+
+  /* Reserva do espaço da barra de abas: ninguém mais chuta um pb-32. */
+  .pb-chrome {
+    padding-bottom: calc(var(--chrome-bottom) + 0.75rem);
+  }
+
+  .pt-chrome {
+    padding-top: var(--chrome-top);
   }
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Sheet } from "./Sheet";
 import { Icon } from "./Icon";
 import { useStore } from "../store/useStore";
+import { ask } from "../store/useConfirm";
+import { LAYER } from "../lib/layers";
 import type { HabitVariant } from "../types";
 
 interface Props {
@@ -41,7 +43,7 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
   return (
     <Sheet
       open={open}
-      z={62}
+      z={LAYER.sheetOverSheet}
       title={editing ? "Editar variação" : "Nova variação"}
       onClose={onClose}
     >
@@ -54,7 +56,7 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ex: Treino A"
-            className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
+            className="field"
           />
         </div>
 
@@ -67,7 +69,7 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
             onChange={(e) => setText(e.target.value)}
             rows={7}
             placeholder={"Supino reto 4x10\nDesenvolvimento 3x12\nTríceps corda 4x12"}
-            className="w-full resize-none rounded-xl bg-ink-800 px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-white/25"
+            className="w-full resize-none rounded-md2 bg-ink-800 px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-white/25"
           />
           <p className="text-[11px] text-white/35">
             Uma linha por exercício. Deixe vazio se não se aplica (ex: modalidade do jiu).
@@ -77,13 +79,19 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
         <div className="flex gap-3 pt-1">
           {editing && (
             <button
-              onClick={() => {
-                if (confirm(`Excluir a variação "${editing.name}"?`)) {
-                  deleteVariant(habitId, editing.id);
-                  onClose();
-                }
+              onClick={async () => {
+                const ok = await ask({
+                  title: `Excluir “${editing.name}”?`,
+                  message:
+                    "Os blocos que usam essa variação continuam na semana, só ficam sem ela.",
+                  confirmLabel: "Excluir variação",
+                  destructive: true,
+                });
+                if (!ok) return;
+                deleteVariant(habitId, editing.id);
+                onClose();
               }}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-400"
+              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
             >
               <Icon name="trash" size={16} /> Excluir
             </button>
@@ -91,7 +99,7 @@ export function VariantSheet({ open, habitId, editing, onClose }: Props) {
           <button
             onClick={save}
             disabled={!name.trim()}
-            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
+            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
           >
             Salvar
           </button>

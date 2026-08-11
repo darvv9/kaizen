@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
+import { ask } from "../store/useConfirm";
 import { Sheet } from "../components/Sheet";
 import { Icon } from "../components/Icon";
 import { VariantSheet } from "../components/VariantSheet";
@@ -12,10 +12,19 @@ import { storage } from "../data/storage";
 import { media } from "../data/media";
 import { formatBytes } from "../lib/physique";
 import { requestNotificationPermission, supportsBadge } from "../lib/badge";
-import type { Category, Habit, HabitVariant } from "../types";
+import type { AppData, Category, Habit, HabitVariant } from "../types";
+
+/** O que some junto com uma atividade — o texto da confirmação sai daqui. */
+function habitImpact(data: AppData, habitId: string) {
+  const slots = data.routineSlots.filter((s) => s.habitId === habitId).length;
+  return slots === 0
+    ? "Ela não está em nenhum dia da semana."
+    : `Sai de ${slots} ${slots === 1 ? "bloco" : "blocos"} da semana, com o histórico.`;
+}
 
 export function Settings() {
   const data = useStore((s) => s.data);
+  const deleteHabit = useStore((s) => s.deleteHabit);
   const deleteCategory = useStore((s) => s.deleteCategory);
   const exportData = useStore((s) => s.exportData);
   const importData = useStore((s) => s.importData);
@@ -32,6 +41,40 @@ export function Settings() {
   useEffect(() => setLegacy(storage.hasLegacy()), []);
 
   const cats = [...data.categories].sort((a, b) => a.order - b.order);
+
+  async function removeHabit(habit: Habit) {
+    const ok = await ask({
+      title: `Excluir “${habit.name}”?`,
+      message: `${habitImpact(data, habit.id)} Não dá pra desfazer.`,
+      confirmLabel: "Excluir atividade",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteHabit(habit.id);
+    push(`${habit.name} excluída`, "success");
+  }
+
+  async function removeCategory(cat: Category) {
+    const habits = data.habits.filter((h) => h.categoryId === cat.id);
+    const slots = data.routineSlots.filter((s) =>
+      habits.some((h) => h.id === s.habitId)
+    ).length;
+    const ok = await ask({
+      title: `Excluir a categoria “${cat.name}”?`,
+      message:
+        habits.length === 0
+          ? "Ela está vazia."
+          : `Vão junto ${habits.length} ${
+              habits.length === 1 ? "atividade" : "atividades"
+            } e ${slots} ${slots === 1 ? "bloco" : "blocos"} da semana.`,
+      confirmLabel: "Excluir tudo",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteCategory(cat.id);
+    setCatSheet(false);
+    push(`${cat.name} excluída`, "success");
+  }
 
   function handleExport() {
     const blob = new Blob([exportData()], { type: "application/json" });
@@ -68,11 +111,12 @@ export function Settings() {
 
       <div className="flex gap-3">
         <button
+          disabled={cats.length === 0}
           onClick={() => {
             setEditingHabit(null);
             setHabitSheet(true);
           }}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow"
+          className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
         >
           <Icon name="plus" size={15} /> Atividade
         </button>
@@ -81,7 +125,7 @@ export function Settings() {
             setEditingCat(null);
             setCatSheet(true);
           }}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-ink-700 py-3 text-sm font-semibold text-white"
+          className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 bg-ink-700 py-3 text-sm font-semibold text-white"
         >
           <Icon name="plus" size={15} /> Categoria
         </button>
@@ -94,44 +138,61 @@ export function Settings() {
             <section key={cat.id} className="card p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Icon name={cat.icon} size={17} style={{ color: cat.color }} />
-                <span className="font-semibold text-white">{cat.name}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold text-white">
+                  {cat.name}
+                </span>
                 <button
                   onClick={() => {
                     setEditingCat(cat);
                     setCatSheet(true);
                   }}
                   aria-label={`Editar ${cat.name}`}
-                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] text-white/50"
+                  className="press flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/50"
                 >
-                  <Icon name="pencil" size={13} />
+                  <Icon name="pencil" size={14} />
+                </button>
+                <button
+                  onClick={() => removeCategory(cat)}
+                  aria-label={`Excluir ${cat.name}`}
+                  className="press flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/35 active:text-red-400"
+                >
+                  <Icon name="trash" size={14} />
                 </button>
               </div>
               <div className="space-y-2">
                 {habits.map((h) => (
-                  <button
-                    key={h.id}
-                    onClick={() => {
-                      setEditingHabit(h);
-                      setHabitSheet(true);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-sm text-white/90">
-                      {h.name}
-                    </span>
-                    {h.variants.length > 0 && (
-                      <span
-                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        style={{ backgroundColor: `${cat.color}1f`, color: cat.color }}
-                      >
-                        {h.variants.length}{" "}
-                        {h.variants.length === 1 ? "variação" : "variações"}
+                  <div key={h.id} className="row gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingHabit(h);
+                        setHabitSheet(true);
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm text-white/90">
+                        {h.name}
                       </span>
-                    )}
-                    <span className="shrink-0 text-[11px] text-white/35">
-                      {data.routineSlots.filter((s) => s.habitId === h.id).length} na semana
-                    </span>
-                  </button>
+                      {h.variants.length > 0 && (
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                          style={{ backgroundColor: `${cat.color}1f`, color: cat.color }}
+                        >
+                          {h.variants.length}{" "}
+                          {h.variants.length === 1 ? "variação" : "variações"}
+                        </span>
+                      )}
+                      <span className="shrink-0 text-[11px] text-white/35">
+                        {data.routineSlots.filter((s) => s.habitId === h.id).length} na semana
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => removeHabit(h)}
+                      aria-label={`Excluir ${h.name}`}
+                      className="press -mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/30 active:text-red-400"
+                    >
+                      <Icon name="trash" size={14} />
+                    </button>
+                  </div>
                 ))}
                 {habits.length === 0 && (
                   <div className="px-1 py-2 text-xs text-white/35">Sem atividades ainda.</div>
@@ -140,6 +201,12 @@ export function Settings() {
             </section>
           );
         })}
+
+        {cats.length === 0 && (
+          <div className="card px-6 py-8 text-center text-sm text-white/45">
+            Sem categorias. Crie uma para começar a montar suas atividades.
+          </div>
+        )}
       </div>
 
       <PhysiqueSettings />
@@ -153,13 +220,13 @@ export function Settings() {
         <div className="flex gap-3">
           <button
             onClick={handleExport}
-            className="flex-1 rounded-xl bg-ink-700 py-2.5 text-sm font-medium text-white"
+            className="press flex-1 rounded-md2 bg-ink-700 py-2.5 text-sm font-medium text-white"
           >
             Exportar
           </button>
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex-1 rounded-xl bg-ink-700 py-2.5 text-sm font-medium text-white"
+            className="press flex-1 rounded-md2 bg-ink-700 py-2.5 text-sm font-medium text-white"
           >
             Importar
           </button>
@@ -172,37 +239,47 @@ export function Settings() {
           />
         </div>
         {legacy && (
-          <div className="flex items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5">
+          <div className="flex items-center gap-2 rounded-md2 bg-white/[0.04] px-3 py-2.5">
             <span className="flex-1 text-[11px] leading-snug text-white/45">
               Dados da versão antiga continuam guardados neste aparelho.
             </span>
             <button
-              onClick={() => {
-                if (confirm("Apagar os dados da versão antiga? Não afeta o app atual.")) {
-                  storage.clearLegacy();
-                  setLegacy(false);
-                }
+              onClick={async () => {
+                const ok = await ask({
+                  title: "Apagar os dados da versão antiga?",
+                  message: "Não afeta a rotina atual.",
+                  confirmLabel: "Apagar",
+                  destructive: true,
+                });
+                if (!ok) return;
+                storage.clearLegacy();
+                setLegacy(false);
               }}
-              className="shrink-0 text-[11px] font-medium text-white/40"
+              className="press shrink-0 text-[11px] font-medium text-white/40"
             >
               Apagar
             </button>
           </div>
         )}
         <button
-          onClick={() => {
-            if (confirm("Resetar tudo para o padrão? Isso apaga sua rotina.")) {
-              resetData();
-              push("App resetado", "success");
-            }
+          onClick={async () => {
+            const ok = await ask({
+              title: "Resetar o Kaizen?",
+              message: "Sua rotina volta ao padrão de fábrica. Os vídeos ficam.",
+              confirmLabel: "Resetar tudo",
+              destructive: true,
+            });
+            if (!ok) return;
+            resetData();
+            push("App resetado", "success");
           }}
-          className="w-full rounded-xl border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
+          className="press w-full rounded-md2 border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
         >
           Resetar tudo
         </button>
       </section>
 
-      <p className="pb-4 text-center text-xs text-white/25">
+      <p className="pb-2 text-center text-xs text-white/25">
         Kaizen · 改善
         <span className="mt-1 block text-[10px] tabular-nums text-white/20">
           versão {__BUILD_ID__}
@@ -219,20 +296,7 @@ export function Settings() {
         open={catSheet}
         editing={editingCat}
         onClose={() => setCatSheet(false)}
-        onDelete={(cat) => {
-          const habits = data.habits.filter((h) => h.categoryId === cat.id);
-          const slots = data.routineSlots.filter((s) =>
-            habits.some((h) => h.id === s.habitId)
-          );
-          if (
-            confirm(
-              `Excluir "${cat.name}"? Vão junto ${habits.length} atividade(s) e ${slots.length} bloco(s) da semana.`
-            )
-          ) {
-            deleteCategory(cat.id);
-            setCatSheet(false);
-          }
-        }}
+        onDelete={removeCategory}
       />
     </div>
   );
@@ -268,7 +332,7 @@ function PhysiqueSettings() {
             <button
               key={days}
               onClick={() => setPhysiqueInterval(days)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              className={`press rounded-full px-3 py-1.5 text-sm font-medium ${
                 physique.intervalDays === days
                   ? "bg-accent text-ink-950"
                   : "bg-ink-800 text-white/50"
@@ -294,7 +358,7 @@ function PhysiqueSettings() {
               }
               setBadgeEnabled(true);
             }}
-            className="flex w-full items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left"
+            className="row"
           >
             <span className="flex-1 text-sm text-white/85">Aviso no ícone do app</span>
             <span
@@ -325,13 +389,19 @@ function PhysiqueSettings() {
       {physique.entries.length > 0 && (
         <button
           onClick={async () => {
-            if (!confirm("Apagar todos os vídeos do físico? Não dá pra desfazer.")) return;
+            const ok = await ask({
+              title: "Apagar todos os vídeos?",
+              message: `${physique.entries.length} vídeo(s) saem deste aparelho. Não dá pra desfazer.`,
+              confirmLabel: "Apagar tudo",
+              destructive: true,
+            });
+            if (!ok) return;
             const ids = clearPhysiqueEntries();
             await media.removeMany(ids).catch(() => {});
             setUsed(0);
             push("Vídeos apagados", "success");
           }}
-          className="w-full rounded-xl border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
+          className="press w-full rounded-md2 border border-red-500/30 py-2.5 text-sm font-medium text-red-400"
         >
           Apagar todos os vídeos
         </button>
@@ -349,12 +419,14 @@ function HabitSheet({
   editing: Habit | null;
   onClose: () => void;
 }) {
-  const cats = useStore((s) => [...s.data.categories].sort((a, b) => a.order - b.order));
-  const habit = useStore((s) => s.data.habits.find((h) => h.id === editing?.id) ?? null);
+  const data = useStore((s) => s.data);
   const addHabit = useStore((s) => s.addHabit);
   const updateHabit = useStore((s) => s.updateHabit);
   const deleteHabit = useStore((s) => s.deleteHabit);
   const addVariant = useStore((s) => s.addVariant);
+
+  const cats = [...data.categories].sort((a, b) => a.order - b.order);
+  const habit = data.habits.find((h) => h.id === editing?.id) ?? null;
 
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -378,6 +450,19 @@ function HabitSheet({
     onClose();
   }
 
+  async function remove() {
+    if (!editing) return;
+    const ok = await ask({
+      title: `Excluir “${editing.name}”?`,
+      message: `${habitImpact(data, editing.id)} Não dá pra desfazer.`,
+      confirmLabel: "Excluir atividade",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteHabit(editing.id);
+    onClose();
+  }
+
   return (
     <>
       <Sheet
@@ -391,7 +476,7 @@ function HabitSheet({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Academia"
-              className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
+              className="field"
             />
           </Field>
 
@@ -401,7 +486,7 @@ function HabitSheet({
                 <button
                   key={c.id}
                   onClick={() => setCategoryId(c.id)}
-                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition"
+                  className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm"
                   style={{
                     backgroundColor:
                       categoryId === c.id ? c.color : "rgba(255,255,255,0.06)",
@@ -426,7 +511,7 @@ function HabitSheet({
                       setEditingVariant(v);
                       setVariantSheet(true);
                     }}
-                    className="rounded-full bg-ink-800 px-3 py-1.5 text-sm text-white/75"
+                    className="press rounded-full bg-ink-800 px-3 py-1.5 text-sm text-white/75"
                   >
                     {v.name}
                     {v.items.length > 0 && (
@@ -441,7 +526,7 @@ function HabitSheet({
                     setEditingVariant(null);
                     setVariantSheet(true);
                   }}
-                  className="flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
+                  className="press flex items-center gap-1 rounded-full border border-dashed border-white/25 px-3 py-1.5 text-sm text-white/55"
                 >
                   <Icon name="plus" size={13} /> Nova
                 </button>
@@ -472,13 +557,8 @@ function HabitSheet({
           <div className="flex gap-3 pt-1">
             {editing && (
               <button
-                onClick={() => {
-                  if (confirm(`Excluir "${editing.name}" e seus blocos da semana?`)) {
-                    deleteHabit(editing.id);
-                    onClose();
-                  }
-                }}
-                className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+                onClick={remove}
+                className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
               >
                 <Icon name="trash" size={16} /> Excluir
               </button>
@@ -486,7 +566,7 @@ function HabitSheet({
             <button
               disabled={!valid}
               onClick={save}
-              className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
+              className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
             >
               Salvar
             </button>
@@ -550,7 +630,7 @@ function CategorySheet({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ex: Academia"
-            className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
+            className="field"
           />
         </Field>
 
@@ -561,7 +641,7 @@ function CategorySheet({
                 key={ic}
                 onClick={() => setIcon(ic)}
                 aria-label={ic}
-                className={`flex h-11 w-11 items-center justify-center rounded-xl transition ${
+                className={`press flex h-11 w-11 items-center justify-center rounded-md2 ${
                   icon === ic ? "bg-accent text-ink-950" : "bg-ink-800 text-white/70"
                 }`}
               >
@@ -578,7 +658,7 @@ function CategorySheet({
                 key={c}
                 onClick={() => setColor(c)}
                 aria-label={`Cor ${c}`}
-                className="h-9 w-9 rounded-full ring-2 ring-offset-2 ring-offset-ink-850 transition"
+                className="press h-9 w-9 rounded-full ring-2 ring-offset-2 ring-offset-ink-850"
                 style={{
                   backgroundColor: c,
                   // @ts-expect-error css var
@@ -593,7 +673,7 @@ function CategorySheet({
           {editing && (
             <button
               onClick={() => onDelete(editing)}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
+              className="press flex items-center gap-1.5 rounded-md2 border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-400"
             >
               <Icon name="trash" size={16} /> Excluir
             </button>
@@ -601,7 +681,7 @@ function CategorySheet({
           <button
             disabled={!name.trim()}
             onClick={save}
-            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink-950 shadow-glow disabled:opacity-40"
+            className="press flex-1 rounded-md2 bg-accent py-3 text-sm font-semibold text-ink-950 disabled:opacity-40"
           >
             Salvar
           </button>
@@ -613,15 +693,11 @@ function CategorySheet({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-2"
-    >
+    <div className="space-y-2">
       <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
         {label}
       </label>
       {children}
-    </motion.div>
+    </div>
   );
 }

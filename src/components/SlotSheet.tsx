@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { Sheet } from "./Sheet";
 import { Icon } from "./Icon";
 import { useStore } from "../store/useStore";
+import { ask } from "../store/useConfirm";
 import { DURATION_OPTIONS, parseTime, prettyDuration, prettyMinutes, prettyTime } from "../lib/time";
 import { WEEKDAYS_MON_FIRST, WEEKDAY_SHORT_MON_FIRST } from "../lib/date";
 import type { RoutineSlot, Weekday } from "../types";
@@ -29,6 +29,7 @@ export function SlotSheet({
   const addRoutineSlot = useStore((s) => s.addRoutineSlot);
   const updateRoutineSlot = useStore((s) => s.updateRoutineSlot);
   const deleteRoutineSlot = useStore((s) => s.deleteRoutineSlot);
+  const deleteHabit = useStore((s) => s.deleteHabit);
   const addHabit = useStore((s) => s.addHabit);
 
   const [creatingHabit, setCreatingHabit] = useState(false);
@@ -99,6 +100,37 @@ export function SlotSheet({
     onClose();
   }
 
+  /** Some com o bloco, mas a atividade continua na biblioteca. */
+  async function removeSlot() {
+    if (!editing) return;
+    const ok = await ask({
+      title: "Tirar da semana?",
+      message: `“${habit?.name ?? "Este bloco"}” sai deste horário. A atividade continua na sua biblioteca.`,
+      confirmLabel: "Tirar da semana",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteRoutineSlot(editing.id);
+    onClose();
+  }
+
+  /** Some com a atividade inteira: biblioteca, blocos e histórico. */
+  async function removeHabit() {
+    if (!habit) return;
+    const count = data.routineSlots.filter((s) => s.habitId === habit.id).length;
+    const ok = await ask({
+      title: `Excluir “${habit.name}”?`,
+      message: `Sai da biblioteca e de ${count} ${
+        count === 1 ? "bloco" : "blocos"
+      } da semana, com o histórico. Não dá pra desfazer.`,
+      confirmLabel: "Excluir atividade",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteHabit(habit.id);
+    onClose();
+  }
+
   return (
     <Sheet open={open} title={editing ? "Editar bloco" : "Novo bloco"} onClose={onClose}>
       <div className="space-y-5">
@@ -113,7 +145,7 @@ export function SlotSheet({
 
         {!creatingHabit ? (
           <Field label="Atividade">
-            <div className="max-h-44 space-y-3 overflow-y-auto">
+            <div className="space-y-3">
               {cats.map((cat) => {
                 const list = data.habits.filter(
                   (h) => h.categoryId === cat.id && !h.archived
@@ -156,7 +188,7 @@ export function SlotSheet({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Ex: Academia"
-                className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none placeholder:text-white/30"
+                className="field"
               />
             </Field>
             <Field label="Categoria">
@@ -216,7 +248,7 @@ export function SlotSheet({
                 <button
                   key={day}
                   onClick={() => toggleDay(day)}
-                  className={`flex-1 rounded-xl py-2 text-[11px] font-semibold transition ${
+                  className={`flex-1 rounded-md2 py-2 text-[11px] font-semibold transition ${
                     active ? "bg-white text-ink-950" : "bg-ink-800 text-white/45"
                   }`}
                 >
@@ -237,7 +269,7 @@ export function SlotSheet({
             step={900}
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="w-full rounded-xl bg-ink-800 px-4 py-3 text-white outline-none [color-scheme:dark]"
+            className="field [color-scheme:dark]"
           />
         </Field>
 
@@ -257,23 +289,10 @@ export function SlotSheet({
           </div>
         </Field>
 
-        <div className="flex gap-3 pt-1">
-          {editing && (
-            <button
-              onClick={() => {
-                if (confirm("Excluir este bloco da rotina?")) {
-                  deleteRoutineSlot(editing.id);
-                  onClose();
-                }
-              }}
-              className="flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-400"
-            >
-              <Icon name="trash" size={16} /> Excluir
-            </button>
-          )}
+        <div className="space-y-3 pt-1">
           <button
             onClick={save}
-            className="flex-1 rounded-xl bg-white py-3 text-sm font-semibold text-ink-950 shadow-glow"
+            className="press w-full rounded-md2 bg-white py-3 text-sm font-semibold text-ink-950"
           >
             {editing
               ? "Salvar"
@@ -281,6 +300,30 @@ export function SlotSheet({
               ? `Adicionar em ${days.length} dias`
               : "Adicionar"}
           </button>
+
+          {editing && (
+            <>
+              <div className="flex gap-2">
+                <button
+                  onClick={removeSlot}
+                  className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-white/10 py-2.5 text-[13px] font-semibold text-white/60"
+                >
+                  <Icon name="close" size={14} /> Tirar da semana
+                </button>
+                <button
+                  onClick={removeHabit}
+                  disabled={!habit}
+                  className="press flex flex-1 items-center justify-center gap-1.5 rounded-md2 border border-red-500/30 py-2.5 text-[13px] font-semibold text-red-400 disabled:opacity-40"
+                >
+                  <Icon name="trash" size={14} /> Excluir atividade
+                </button>
+              </div>
+              <p className="text-[11px] leading-relaxed text-white/35">
+                Tirar da semana apaga só este bloco. Excluir atividade some com ela do app
+                inteiro — biblioteca, todos os dias e histórico.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </Sheet>
@@ -299,7 +342,7 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${
+      className={`flex-1 rounded-md2 py-2 text-sm font-medium transition ${
         active ? "bg-white/10 text-white" : "text-white/40"
       }`}
     >
@@ -310,15 +353,11 @@ function TabBtn({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-2"
-    >
+    <div className="space-y-2">
       <label className="block text-xs font-medium uppercase tracking-wide text-white/45">
         {label}
       </label>
       {children}
-    </motion.div>
+    </div>
   );
 }

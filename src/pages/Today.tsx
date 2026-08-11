@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { useStore } from "../store/useStore";
 import { useNav } from "../store/useNav";
+import { ask } from "../store/useConfirm";
 import { ProgressRing } from "../components/ProgressRing";
 import { HabitCard } from "../components/HabitCard";
 import { DayPicker } from "../components/DayPicker";
@@ -39,11 +39,14 @@ export function Today() {
   const progress = total > 0 ? done / total : 0;
   const streak = currentStreak(data);
 
-  function handleSkip() {
+  async function handleSkip() {
     const label = viewDate.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
-    if (confirm(`Pular o dia ${label}? Não vai quebrar sua sequência.`)) {
-      skipDay(viewDate);
-    }
+    const ok = await ask({
+      title: `Pular ${label}?`,
+      message: "O dia sai da cobrança e a sequência continua de pé.",
+      confirmLabel: "Pular o dia",
+    });
+    if (ok) skipDay(viewDate);
   }
 
   return (
@@ -83,7 +86,7 @@ export function Today() {
           {!isFuture && !skipped && (
             <button
               onClick={handleSkip}
-              className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[11px] font-medium text-white/50"
+              className="press flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-[11px] font-medium text-white/50"
             >
               <Icon name="skip" size={12} />
               {viewingToday ? "Pular hoje" : "Pular dia"}
@@ -99,11 +102,7 @@ export function Today() {
       )}
 
       {skipped && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card flex items-center justify-between gap-3 border-[#6b7cff]/40 bg-[#6b7cff]/10 px-4 py-3.5"
-        >
+        <div className="card flex items-center justify-between gap-3 border-[#6b7cff]/40 bg-[#6b7cff]/10 px-4 py-3.5">
           <div>
             <div className="text-sm font-semibold text-white">Dia pulado</div>
             <div className="text-xs text-white/50">Sem cobrança · sequência preservada</div>
@@ -111,12 +110,12 @@ export function Today() {
           {!isFuture && (
             <button
               onClick={() => unskipDay(viewDate)}
-              className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
+              className="press shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
             >
               Desfazer
             </button>
           )}
-        </motion.div>
+        </div>
       )}
 
       {viewingToday && shouldNagToday(data) && <PhysiqueNag />}
@@ -147,7 +146,7 @@ export function Today() {
               <p className="text-sm text-white/45">Nada na rotina deste dia.</p>
               <button
                 onClick={() => setTab("week")}
-                className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-ink-950"
+                className="press rounded-full bg-white px-5 py-2 text-sm font-semibold text-ink-950"
               >
                 Montar a semana
               </button>
@@ -180,11 +179,7 @@ function PhysiqueNag() {
       : `Faz ${status.daysSinceLast} dias desde o último.`;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card space-y-3 border-white/20 bg-white/[0.07] px-4 py-3.5"
-    >
+    <div className="card space-y-3 border-white/20 bg-white/[0.07] px-4 py-3.5">
       <div className="flex items-center gap-3">
         <Icon name="film" size={20} className="shrink-0 text-white/70" />
         <div className="min-w-0 flex-1">
@@ -195,17 +190,17 @@ function PhysiqueNag() {
       <div className="flex gap-2">
         <button
           onClick={() => setTab("physique")}
-          className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-ink-950"
+          className="press flex-1 rounded-md2 bg-white py-2.5 text-sm font-semibold text-ink-950"
         >
           Gravar agora
         </button>
         <button
           onClick={() => snoozePhysique(dayKey(addDays(new Date(), 2)))}
-          className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium text-white/70"
+          className="press rounded-md2 bg-white/10 px-4 py-2.5 text-sm font-medium text-white/70"
         >
           Depois
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useStore } from "../store/useStore";
 import { useFeedback } from "../store/useFeedback";
 import { ActivityPalette } from "../components/ActivityPalette";
@@ -107,41 +106,35 @@ export function Week() {
         onCreate={() => openSheet(target.weekday, target.startTime, null, true)}
       />
 
-      <p className="shrink-0 text-[10px] leading-snug text-white/30">
-        Toque numa atividade e depois na semana · arraste o bloco pra mudar dia e
-        horário · puxe a base pra mudar a duração.
-      </p>
+      {/* Mesma altura com ou sem atividade na mão: a dica troca de texto, não
+          aparece flutuando por cima da grade. */}
+      <div className="flex h-8 shrink-0 items-center">
+        {armed ? (
+          <div className="flex w-full items-center gap-2 rounded-md2 bg-white px-3 py-1.5">
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-ink-950">
+              Toque num horário para colocar “{armed.name}”
+            </span>
+            <button
+              onClick={() => setArmedId(null)}
+              aria-label="Cancelar"
+              className="press flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink-950/10 text-ink-950"
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </div>
+        ) : (
+          <p className="text-[10px] leading-snug text-white/30">
+            Toque numa atividade e depois no horário · segure a atividade pra excluir ·
+            arraste o bloco pra mudar dia e hora.
+          </p>
+        )}
+      </div>
 
       <WeekGrid
         armedHabitId={armedId}
         onEmptyTap={handleEmptyTap}
         onEditSlot={(slot) => openSheet(slot.weekday, slot.startTime, slot)}
       />
-
-      <AnimatePresence>
-        {armed && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="pointer-events-none fixed inset-x-0 z-40 mx-auto flex max-w-md justify-center px-5"
-            style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.25rem)" }}
-          >
-            <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-white py-2 pl-4 pr-2 shadow-glow">
-              <span className="truncate text-xs font-semibold text-ink-950">
-                Toque num horário para colocar “{armed.name}”
-              </span>
-              <button
-                onClick={() => setArmedId(null)}
-                aria-label="Cancelar"
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-950/10 text-ink-950"
-              >
-                <Icon name="close" size={13} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <SlotSheet
         open={sheetOpen}

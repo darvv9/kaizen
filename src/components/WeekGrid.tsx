@@ -98,8 +98,10 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
     onEmptyTap(WEEK_DAYS[index], formatTime(start));
   }
 
+  // `isolate` prende os z-index dos blocos aqui dentro: nenhum deles disputa
+  // camada com a barra de abas ou com um sheet aberto.
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative isolate flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 pb-1">
         <div className="shrink-0" style={{ width: GUTTER }} />
         <div className="flex flex-1">
@@ -130,7 +132,7 @@ export function WeekGrid({ onEditSlot, onEmptyTap, armedHabitId }: Props) {
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-white/[0.06] bg-ink-850/70"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg2 border border-white/[0.06] bg-ink-850/70"
       >
         <div className="flex" style={{ height: contentHeight }}>
           <div className="relative shrink-0" style={{ width: GUTTER }}>
@@ -359,7 +361,7 @@ function WeekBlock({
       onPointerUp={(e) => finish(e, true)}
       onPointerCancel={(e) => finish(e, false)}
       onClick={(e) => e.stopPropagation()}
-      className="absolute select-none overflow-hidden rounded-lg border"
+      className="absolute select-none overflow-hidden rounded-sm2 border"
       style={{
         left: shownDay * colWidth + column * width + 1,
         width: width - 2,
@@ -375,29 +377,29 @@ function WeekBlock({
       }}
     >
       <div
-        className="absolute inset-y-0 left-0 w-[3px]"
+        className="absolute inset-y-0 left-0 w-[2px]"
         style={{ backgroundColor: color }}
       />
-      {height >= 32 ? (
-        <div className="flex h-full flex-col justify-start pl-1.5 pr-1 pt-0.5">
-          <div className="truncate text-[8px] font-medium tabular-nums leading-tight text-white/50">
+      {height >= 34 ? (
+        <div className="flex h-full flex-col justify-start pl-2 pr-1.5 pt-1">
+          <div className="truncate text-[9px] font-medium tabular-nums leading-none text-white/50">
             {prettyMinutes(shownStart)}
           </div>
-          <div className="line-clamp-2 text-[9px] font-semibold leading-tight text-white">
+          <div className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-tight text-white">
             {name}
-            {variantName && height < 44 && (
+            {variantName && height < 50 && (
               <span className="text-white/55"> · {shortVariantName(variantName)}</span>
             )}
           </div>
-          {variantName && height >= 44 && (
-            <div className="truncate text-[8px] font-medium leading-tight" style={{ color }}>
+          {variantName && height >= 50 && (
+            <div className="truncate text-[9px] font-medium leading-tight" style={{ color }}>
               {variantName}
             </div>
           )}
         </div>
       ) : (
-        <div className="flex h-full items-center pl-1.5 pr-1">
-          <div className="truncate text-[8px] font-semibold leading-none text-white/90">
+        <div className="flex h-full items-center pl-2 pr-1.5">
+          <div className="truncate text-[9px] font-semibold leading-none text-white/90">
             {name}
             {variantName && (
               <span className="text-white/55"> · {shortVariantName(variantName)}</span>

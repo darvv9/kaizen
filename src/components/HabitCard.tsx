@@ -29,8 +29,7 @@ export function HabitCard({
   onSubtitlePress,
 }: Props) {
   return (
-    <motion.div
-      layout
+    <div
       className="card flex w-full items-center gap-3 px-4 py-3"
       style={{ borderColor: done ? `${color}55` : undefined }}
     >
@@ -84,7 +83,7 @@ export function HabitCard({
         (onSubtitlePress ? (
           <button
             onClick={onSubtitlePress}
-            className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            className="press shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
             style={{ backgroundColor: `${color}1f`, color }}
           >
             {subtitle}
@@ -97,6 +96,6 @@ export function HabitCard({
             {subtitle}
           </span>
         ))}
-    </motion.div>
+    </div>
   );
 }
